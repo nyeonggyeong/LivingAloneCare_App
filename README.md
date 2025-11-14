@@ -1,16 +1,19 @@
 # livingalonecare_app
 
-A new Flutter project.
+| 타입(Type)             | 설명(Description)                    |
+| -------------------- | ---------------------------------- |
+| **Feat**             | 새로운 기능을 추가한 경우                     |
+| **Fix**              | 버그를 고친 경우                          |
+| **Design**           | CSS 등 UI 디자인을 변경한 경우               |
+| **!BREAKING CHANGE** | 기존 API에 큰 변경이 있는 경우                |
+| **!HOTFIX**          | 급하게 치명적인 버그를 수정해야 하는 경우            |
+| **Style**            | 코드 포맷 변경, 세미콜론 누락 등 코드 변경이 없는 경우   |
+| **Refactor**         | 프로덕션 코드 리팩토링                       |
+| **Comment**          | 필요한 주석을 추가하거나 변경한 경우               |
+| **Docs**             | 문서를 수정한 경우                         |
+| **Test**             | 테스트 코드 추가 또는 리팩토링 (프로덕션 코드 변경 없음)  |
+| **Chore**            | 빌드 또는 패키지 매니저 설정 등 (프로덕션 코드 변경 없음) |
+| **Rename**           | 파일/폴더명만 수정하거나 이동한 경우               |
+| **Remove**           | 파일을 삭제하는 작업만 수행한 경우                |
 
-## Getting Started
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
