@@ -1,20 +1,3 @@
-// android/build.gradle.kts (프로젝트 레벨)
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        // Android Gradle 플러그인
-        classpath("com.android.tools.build:gradle:8.1.1")
-        
-        // Kotlin Gradle 플러그인
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22") 
-
-        classpath("com.google.gms:google-services:4.4.0") 
-    }
-}
-
 allprojects {
     repositories {
         google()
@@ -22,15 +5,15 @@ allprojects {
     }
 }
 
-val newBuildDir =
+val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
         .get()
-rootProject.layout.buildDirectory.set(newBuildDir)
+rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
-    val newSubprojectBuildDir = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.set(newSubprojectBuildDir)
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
 tasks.register<Delete>("clean") {
