@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:livingalonecare_app/screens/signup_screen.dart'; // 회원가입 화면 경로 (필요시 주석 해제)
+import 'package:livingalonecare_app/screens/signup_screen.dart'; // 회원가입 화면 경로 (필요시 주석 해제)
 // import 'package:livingalonecare_app/screens/home_screen.dart'; // 로그인 성공 후 이동할 화면 경로 (필요시 주석 해제)
 
 class LoginScreen extends StatefulWidget {
@@ -254,11 +254,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 GestureDetector(
                   onTap: () {
-                    // TODO: 회원가입 화면(SignupScreen)으로 이동
-                    // Navigator.push(
-                    //   context,
-                    //   MaterialPageRoute(builder: (context) => const SignupScreen()),
-                    // );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SignupScreen(),
+                      ),
+                    );
                   },
                   child: const Text(
                     '회원가입',
