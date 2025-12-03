@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,8 +20,16 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedIndex = index;
     });
     if (index == 2) {
-      print("재료 등록 카메라 실행!");
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const AddIngredientScreen()),
+      );
+      return; // 탭 상태(색상)는 변경하지 않고 함수 종료
     }
+
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   @override

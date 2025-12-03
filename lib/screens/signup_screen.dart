@@ -165,8 +165,6 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
             const SizedBox(height: 30),
 
-            // --- 입력 필드 시작 ---
-
             // 이름
             _buildLabel('이름'),
             const SizedBox(height: 8),
