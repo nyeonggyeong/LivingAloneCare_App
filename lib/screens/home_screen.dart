@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -8,8 +10,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0; // 현재 선택된 내비게이션 인덱스
+  int _selectedIndex = 0;
 
+  final User? user = FirebaseAuth.instance.currentUser;
   // 하단 탭 선택 시 호출되는 함수
   void _onItemTapped(int index) {
     setState(() {
@@ -373,154 +376,289 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 2. 유통기한 임박 리스트 (세로 리스트)
   Widget _buildExpiringList() {
-    // 더미 데이터
-    final List<Map<String, dynamic>> expiringItems = [
-      {'name': '우유', 'category': '유제품', 'dDay': 'D-2', 'color': Colors.red},
-      {'name': '계란', 'category': '계란/알류', 'dDay': 'D-3', 'color': Colors.grey},
-      {'name': '당근', 'category': '채소', 'dDay': 'D-5', 'color': Colors.grey},
-    ];
+    // 💡 쿼리 수정: users -> UID -> inventory 접근
+    final Query query = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('inventory')
+        .orderBy('expiryDate'); // 오름차순 (임박한 것부터)
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      shrinkWrap: true, // ScrollView 안에 ListView 넣을 때 필수
-      physics: const NeverScrollableScrollPhysics(), // 스크롤 막기 (전체 스크롤 사용)
-      itemCount: expiringItems.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final item = expiringItems[index];
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return const Center(child: Text('데이터 로드 오류'));
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            alignment: Alignment.center,
+            child: const Text(
+              '냉장고가 비었어요!\n재료를 등록해보세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: docs.length > 3 ? 3 : docs.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final data = docs[index].data() as Map<String, dynamic>;
+
+            String name = data['name'] ?? '알 수 없음';
+            String category = data['category'] ?? '기타';
+
+            // D-Day 계산
+            String dDayText = '';
+            Color tagColor = Colors.grey;
+            Color textColor = Colors.black54;
+
+            if (data['expiryDate'] != null) {
+              final expiryDate = (data['expiryDate'] as Timestamp).toDate();
+              final now = DateTime.now();
+              final difference = DateTime(
+                expiryDate.year,
+                expiryDate.month,
+                expiryDate.day,
+              ).difference(DateTime(now.year, now.month, now.day)).inDays;
+
+              if (difference < 0) {
+                dDayText = '만료됨';
+                tagColor = Colors.grey[300]!;
+              } else if (difference == 0) {
+                dDayText = 'D-Day';
+                tagColor = const Color(0xFFFFEAEA);
+                textColor = Colors.red;
+              } else {
+                dDayText = 'D-$difference';
+                tagColor = difference <= 3
+                    ? const Color(0xFFFFEAEA)
+                    : Colors.grey[100]!;
+                textColor = difference <= 3 ? Colors.red : Colors.black54;
+              }
+            }
+
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // 이미지 대신 아이콘/색상 박스
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.image,
-                  color: Colors.grey,
-                ), // TODO: 실제 이미지로 교체
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item['name'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+              child: Row(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: IngredientImageHelper.getImage(name, category),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${data['storageLocation'] ?? '냉장'} · $category",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (dDayText.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: tagColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        dDayText,
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item['category'],
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                  ],
-                ),
+                ],
               ),
-              // D-Day 태그
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: item['color'] == Colors.red
-                      ? const Color(0xFFFFEAEA)
-                      : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  item['dDay'],
-                  style: TextStyle(
-                    color: item['color'] == Colors.red
-                        ? Colors.red
-                        : Colors.grey,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  // 3. 최근 추가한 재료 (가로 스크롤)
+  // 3. 최근 추가한 재료 (수정된 쿼리)
   Widget _buildRecentList() {
-    final List<Map<String, String>> recentItems = [
-      {'name': '양파', 'count': '3개'},
-      {'name': '감자', 'count': '5개'},
-      {'name': '애호박', 'count': '2개'},
-      {'name': '대파', 'count': '1단'},
-      {'name': '마늘', 'count': '1봉'},
-    ];
+    // 💡 참고: DB에 'registeredAt' 필드가 없다면 정렬이 안 될 수 있습니다.
+    // 만약 없다면 .orderBy('expiryDate') 등을 사용하거나 필드를 추가해야 합니다.
+    final Query query = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('inventory')
+        // .orderBy('registeredAt', descending: true); // ⚠️ 이 필드가 DB에 있는지 확인 필요
+        .orderBy('expiryDate', descending: true); // 임시로 소비기한 역순 사용
 
-    return SizedBox(
-      height: 140, // 가로 스크롤 영역 높이
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        scrollDirection: Axis.horizontal,
-        itemCount: recentItems.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 16),
-        itemBuilder: (context, index) {
-          final item = recentItems[index];
-          return Column(
-            children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      blurRadius: 5,
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox();
+        final docs = snapshot.data!.docs;
+
+        if (docs.isEmpty) return const SizedBox();
+
+        return SizedBox(
+          height: 140,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            scrollDirection: Axis.horizontal,
+            itemCount: docs.length > 5 ? 5 : docs.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 16),
+            itemBuilder: (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
+              String name = data['name'] ?? '알 수 없음';
+              String category = data['category'] ?? '기타';
+
+              return Column(
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          blurRadius: 5,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.kitchen,
-                  color: Colors.orangeAccent,
-                ), // TODO: 이미지 교체
-              ),
-              const SizedBox(height: 8),
-              Text(
-                item['name']!,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                item['count']!,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          );
-        },
-      ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: IngredientImageHelper.getImage(name, category),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '${data['quantity']}${data['unit']}',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
+  }
+}
+
+class IngredientImageHelper {
+  static Widget getImage(String name, String category) {
+    String? imagePath;
+
+    // 자주 쓰는 식재료 매핑
+    if (name.contains('우유'))
+      imagePath = 'assets/images/milk.png';
+    else if (name.contains('계란') || name.contains('달걀'))
+      imagePath = 'assets/images/egg.png';
+    else if (name.contains('양파'))
+      imagePath = 'assets/images/onion.png';
+    else if (name.contains('사과'))
+      imagePath = 'assets/images/apple.png';
+    else if (name.contains('당근'))
+      imagePath = 'assets/images/carrot.png';
+    else if (name.contains('대파') || name.contains('파'))
+      imagePath = 'assets/images/green_onion.png';
+    else if (name.contains('물'))
+      imagePath = 'assets/images/water.png';
+    else if (name.contains('김치'))
+      imagePath = 'assets/images/kimchi.png';
+    else if (name.contains('두부'))
+      imagePath = 'assets/images/tofu.png';
+    else if (name.contains('돼지') || name.contains('삼겹살'))
+      imagePath = 'assets/images/pork.png';
+
+    // 이미지가 있으면 반환
+    if (imagePath != null) {
+      return Image.asset(
+        imagePath,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return _getCategoryIcon(category);
+        },
+      );
+    }
+
+    // 이미지가 없으면 카테고리 아이콘 반환
+    return _getCategoryIcon(category);
+  }
+
+  static Widget _getCategoryIcon(String category) {
+    switch (category) {
+      case '유제품':
+        return const Icon(
+          Icons.local_drink,
+          color: Colors.blueAccent,
+          size: 30,
+        );
+      case '채소':
+      case '야채':
+        return const Icon(Icons.grass, color: Colors.green, size: 30);
+      case '과일':
+        return const Icon(Icons.apple, color: Colors.redAccent, size: 30);
+      case '육류':
+        return const Icon(Icons.set_meal, color: Colors.brown, size: 30);
+      case '수산물':
+        return const Icon(Icons.sailing, color: Colors.blue, size: 30);
+      default:
+        return const Icon(Icons.kitchen, color: Colors.grey, size: 30);
+    }
   }
 }
