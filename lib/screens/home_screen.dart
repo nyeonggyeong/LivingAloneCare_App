@@ -18,7 +18,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _selectedIndex = index;
     });
-    // TODO: 탭별 화면 이동 로직 (레시피, 등록, 커뮤니티, 마이페이지)
     if (index == 2) {
       print("재료 등록 카메라 실행!");
     }
@@ -27,7 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // 전체 배경색 (연한 회색)
+      backgroundColor: const Color(0xFFF5F5F5),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -185,9 +184,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- 위젯 분리 메서드 ---
-
-  // 1. 상단 그라데이션 및 요약 정보
   Widget _buildTopSection() {
     return Container(
       width: double.infinity,
@@ -219,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    '오늘은 뭐 먹을까요?', // 닉네임 연동 시: '${user?.displayName}님,\n오늘은...'
+                    '오늘은 뭐 먹을까요?', // 닉네임 연동 시
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 26,
@@ -242,7 +238,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
           GestureDetector(
             onTap: () {
-              // 탭 인덱스 2번(등록/카메라)으로 변경!
               _onItemTapped(2);
             },
             child: Container(
@@ -255,7 +250,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // 요약 카드 2개 (보유 재료, 이번 달 절약)
           Row(
             children: [
               Expanded(
@@ -277,7 +271,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
-          // 재료 스캔 버튼 (그라데이션 버튼 모양)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -342,7 +335,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 섹션 타이틀 위젯 ("전체보기 >" 포함)
   Widget _buildSectionTitle(String title, {required VoidCallback onTap}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -374,14 +366,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 2. 유통기한 임박 리스트 (세로 리스트)
   Widget _buildExpiringList() {
-    // 💡 쿼리 수정: users -> UID -> inventory 접근
     final Query query = FirebaseFirestore.instance
         .collection('users')
         .doc(user!.uid)
         .collection('inventory')
-        .orderBy('expiryDate'); // 오름차순 (임박한 것부터)
+        .orderBy('expiryDate'); // 오름차순
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
@@ -526,16 +516,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 3. 최근 추가한 재료 (수정된 쿼리)
+  // 최근 추가한 재료
   Widget _buildRecentList() {
-    // 💡 참고: DB에 'registeredAt' 필드가 없다면 정렬이 안 될 수 있습니다.
-    // 만약 없다면 .orderBy('expiryDate') 등을 사용하거나 필드를 추가해야 합니다.
     final Query query = FirebaseFirestore.instance
         .collection('users')
         .doc(user!.uid)
         .collection('inventory')
-        // .orderBy('registeredAt', descending: true); // ⚠️ 이 필드가 DB에 있는지 확인 필요
-        .orderBy('expiryDate', descending: true); // 임시로 소비기한 역순 사용
+        .orderBy('expiryDate', descending: true);
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
@@ -636,8 +623,7 @@ class IngredientImageHelper {
       );
     }
 
-    // 이미지가 없으면 카테고리 아이콘 반환
-    return _getCategoryIcon(category);
+    return _getCategoryIcon(category); // 이미지 없으면 카테고리 아이콘 반환
   }
 
   static Widget _getCategoryIcon(String category) {
