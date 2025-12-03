@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:livingalonecare_app/screens/home_screen.dart';
 import 'package:livingalonecare_app/screens/signup_screen.dart'; // 회원가입 화면 경로 (필요시 주석 해제)
-// import 'package:livingalonecare_app/screens/home_screen.dart'; // 로그인 성공 후 이동할 화면 경로 (필요시 주석 해제)
+import 'package:livingalonecare_app/screens/home_screen.dart'; // 로그인 성공 후 이동할 화면 경로 (필요시 주석 해제)
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,6 +41,12 @@ class _LoginScreenState extends State<LoginScreen> {
       // ✅ 로그인 성공 시: 다음 화면으로 이동
       _showSnackBar('로그인 성공!');
       if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        (route) => false, // 모든 이전 화면 스택 제거 (뒤로 가기 누르면 앱 종료)
+      );
     } on FirebaseAuthException catch (e) {
       String errorMessage = '로그인에 실패했습니다. 다시 시도해주세요.';
       if (e.code == 'user-not-found') {
@@ -154,8 +161,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
               child: TextField(
-                controller: _emailController, // 💡 컨트롤러 연결
-                keyboardType: TextInputType.emailAddress, // 💡 이메일 키보드 타입 지정
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   prefixIcon: Icon(
                     Icons.email_outlined,
