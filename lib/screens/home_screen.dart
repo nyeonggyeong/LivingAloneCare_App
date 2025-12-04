@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
 import 'package:livingalonecare_app/screens/inventory_screen.dart';
+import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
+import 'package:livingalonecare_app/screens/login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,6 +17,26 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   final User? user = FirebaseAuth.instance.currentUser;
+
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+
+      // 로그인 화면으로 이동하면서 기존 화면 스택 모두 제거 (뒤로가기 방지)
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      print("로그아웃 오류: $e");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그아웃 중 오류가 발생했습니다.')));
+    }
+  }
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -32,6 +54,21 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildHomeContent(); // 기존 홈 화면 내용
+      case 1:
+        return const RecipeRecommendationScreen(); // 🍳 레시피 추천 화면 연결!
+      case 3:
+        return const Center(child: Text("커뮤니티 (준비중)"));
+      case 4:
+        return const Center(child: Text("마이페이지 (준비중)"));
+      default:
+        return _buildHomeContent();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (user == null) {
@@ -40,49 +77,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildTopSection(),
 
-            const SizedBox(height: 20),
-
-            _buildSectionTitle(
-              '유통기한 임박',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const InventoryScreen(
-                      sortType: InventorySortType.expiryDate,
-                    ),
-                  ),
-                );
-              },
-            ),
-            _buildExpiringList(),
-
-            const SizedBox(height: 20),
-
-            _buildSectionTitle(
-              '최근 추가한 재료',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const InventoryScreen(
-                      sortType: InventorySortType.registeredAt,
-                    ),
-                  ),
-                );
-              },
-            ),
-            _buildRecentList(),
-
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
+      body: _buildBody(),
 
       floatingActionButton: Container(
         width: 70,
@@ -98,10 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFE8C889), // 밝은 금색
-                    Color(0xFFD2AC6E), // 어두운 금색
-                  ],
+                  colors: [Color(0xFFE8C889), Color(0xFFD2AC6E)],
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -135,9 +128,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
+      // 하단 내비게이션 바
       bottomNavigationBar: BottomAppBar(
         color: Colors.white,
         elevation: 10,
@@ -146,34 +139,27 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 1. 홈 (가장 왼쪽)
             _buildTabItem(
               index: 0,
               icon: Icons.home_outlined,
               activeIcon: Icons.home,
               label: '홈',
             ),
-
             const SizedBox(width: 45),
-
             _buildTabItem(
               index: 1,
               icon: Icons.menu_book_outlined,
               activeIcon: Icons.menu_book,
               label: '레시피',
             ),
-
             const SizedBox(width: 120),
-
             _buildTabItem(
               index: 3,
               icon: Icons.people_outline,
               activeIcon: Icons.people,
               label: '커뮤니티',
             ),
-
             const SizedBox(width: 45),
-
             _buildTabItem(
               index: 4,
               icon: Icons.person_outline,
@@ -182,6 +168,52 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHomeContent() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildTopSection(),
+
+          const SizedBox(height: 20),
+
+          _buildSectionTitle(
+            '유통기한 임박',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const InventoryScreen(
+                    sortType: InventorySortType.expiryDate,
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildExpiringList(),
+
+          const SizedBox(height: 20),
+
+          _buildSectionTitle(
+            '최근 추가한 재료',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const InventoryScreen(
+                    sortType: InventorySortType.registeredAt,
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildRecentList(),
+
+          const SizedBox(height: 80),
+        ],
       ),
     );
   }
@@ -258,18 +290,33 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.notifications,
-                  color: Colors.white,
-                  size: 28,
-                ),
+              // 💡 3. 알림 아이콘 옆에 로그아웃 버튼 추가
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () {},
+                    icon: const Icon(
+                      Icons.notifications,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _signOut, // 로그아웃 기능 연결
+                    tooltip: "로그아웃",
+                    icon: const Icon(
+                      Icons.logout,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 20),
 
+          // ... (나머지 UI는 기존과 동일)
           Row(
             children: [
               Expanded(
@@ -280,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       .collection('inventory')
                       .snapshots(),
                   builder: (context, snapshot) {
-                    String countText = '...'; // 로딩 중 표시
+                    String countText = '...';
                     if (snapshot.hasData) {
                       countText = '${snapshot.data!.docs.length}개';
                     }
@@ -303,6 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 20),
+
           GestureDetector(
             onTap: () => _onItemTapped(2),
             child: Container(
@@ -553,7 +601,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 최근 추가한 재료
   Widget _buildRecentList() {
-    // 💡 [수정] registeredAt 필드가 없을 경우를 대비해 expiryDate로 정렬 유지
     final Query query = FirebaseFirestore.instance
         .collection('users')
         .doc(user!.uid)
