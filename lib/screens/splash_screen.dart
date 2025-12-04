@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 💡 Firebase Auth 추가
+import 'package:livingalonecare_app/screens/home_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -15,7 +17,7 @@ class MyApp extends StatelessWidget {
 }
 
 class SplashScreen extends StatelessWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +101,7 @@ class SplashScreen extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Image.asset(
-                'assets/salad.jpg',
+                'assets/images/salad.jpg',
                 width: 320,
                 height: 250,
                 fit: BoxFit.cover,
@@ -108,21 +110,41 @@ class SplashScreen extends StatelessWidget {
             SizedBox(height: 30),
             // 지금 시작하기 버튼
             ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                // 1. 현재 사용자가 로그인되어 있는지 확인
+                final user = FirebaseAuth.instance.currentUser;
+
+                if (user != null) {
+                  // ✅ 로그인 O -> 홈 화면으로 이동 (뒤로 가기 시 스플래시 안 나오게 교체)
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  );
+                } else {
+                  // ❌ 로그인 X -> 로그인 화면으로 이동
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                  );
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
-                minimumSize: Size(360, 60),
+                minimumSize: const Size(360, 60),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),
                 elevation: 4,
               ),
-              icon: Icon(Icons.bolt, color: Colors.orange),
-              label: Text(
+              icon: const Icon(Icons.bolt, color: Colors.orange),
+              label: const Text(
                 "지금 시작하기",
                 style: TextStyle(fontSize: 15, color: Colors.orange),
               ),
             ),
+            const SizedBox(height: 10),
             SizedBox(height: 12),
             // 로그인 버튼
             OutlinedButton(
