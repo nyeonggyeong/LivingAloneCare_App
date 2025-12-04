@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
+import 'package:livingalonecare_app/screens/inventory_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,7 +15,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   final User? user = FirebaseAuth.instance.currentUser;
-  // 하단 탭 선택 시 호출되는 함수
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -24,7 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
         context,
         MaterialPageRoute(builder: (context) => const AddIngredientScreen()),
       );
-      return; // 탭 상태(색상)는 변경하지 않고 함수 종료
+      return;
     }
 
     setState(() {
@@ -34,6 +34,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (user == null) {
+      return const Scaffold(body: Center(child: Text("로그인이 필요합니다.")));
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: SingleChildScrollView(
@@ -43,12 +47,36 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 20),
 
-            _buildSectionTitle('유통기한 임박', onTap: () {}),
+            _buildSectionTitle(
+              '유통기한 임박',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const InventoryScreen(
+                      sortType: InventorySortType.expiryDate,
+                    ),
+                  ),
+                );
+              },
+            ),
             _buildExpiringList(),
 
             const SizedBox(height: 20),
 
-            _buildSectionTitle('최근 추가한 재료', onTap: () {}),
+            _buildSectionTitle(
+              '최근 추가한 재료',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const InventoryScreen(
+                      sortType: InventorySortType.registeredAt,
+                    ),
+                  ),
+                );
+              },
+            ),
             _buildRecentList(),
 
             const SizedBox(height: 80),
@@ -95,9 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 4),
-
             const Text(
               '등록',
               style: TextStyle(
@@ -196,12 +222,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildTopSection() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 30), // 상단 여백 확보
+      padding: const EdgeInsets.fromLTRB(24, 60, 24, 30),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFA36A), Color(0xFF99D279)], // 오렌지 -> 녹색
+          colors: [Color(0xFFFFA36A), Color(0xFF99D279)],
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(30),
@@ -211,7 +237,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 인사말 & 알림 아이콘
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -224,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    '오늘은 뭐 먹을까요?', // 닉네임 연동 시
+                    '오늘은 뭐 먹을까요?',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 26,
@@ -245,27 +270,26 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
-          GestureDetector(
-            onTap: () {
-              _onItemTapped(2);
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              // ... (기존 스타일 코드)
-              child: const Row(
-                // ... (기존 Row 코드)
-              ),
-            ),
-          ),
-
           Row(
             children: [
               Expanded(
-                child: _buildSummaryCard(
-                  icon: Icons.kitchen,
-                  title: '보유 재료',
-                  value: '24개',
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user!.uid)
+                      .collection('inventory')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    String countText = '...'; // 로딩 중 표시
+                    if (snapshot.hasData) {
+                      countText = '${snapshot.data!.docs.length}개';
+                    }
+                    return _buildSummaryCard(
+                      icon: Icons.kitchen,
+                      title: '보유 재료',
+                      value: countText,
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 16),
@@ -279,29 +303,31 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 20),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2), // 반투명 배경
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white30),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  '재료 스캔하고 레시피 추천받기',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+          GestureDetector(
+            onTap: () => _onItemTapped(2),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white30),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    '재료 스캔하고 레시피 추천받기',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -527,22 +553,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 최근 추가한 재료
   Widget _buildRecentList() {
+    // 💡 [수정] registeredAt 필드가 없을 경우를 대비해 expiryDate로 정렬 유지
     final Query query = FirebaseFirestore.instance
         .collection('users')
         .doc(user!.uid)
         .collection('inventory')
-        .orderBy('expiryDate', descending: true);
-
+        .orderBy('registeredAt', descending: true);
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
         final docs = snapshot.data!.docs;
-
         if (docs.isEmpty) return const SizedBox();
-
         return SizedBox(
-          height: 140,
+          height: 150,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             scrollDirection: Axis.horizontal,
@@ -552,12 +576,11 @@ class _HomeScreenState extends State<HomeScreen> {
               final data = docs[index].data() as Map<String, dynamic>;
               String name = data['name'] ?? '알 수 없음';
               String category = data['category'] ?? '기타';
-
               return Column(
                 children: [
                   Container(
-                    width: 70,
-                    height: 70,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
@@ -569,7 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: const EdgeInsets.all(14.0),
                       child: IngredientImageHelper.getImage(name, category),
                     ),
                   ),
