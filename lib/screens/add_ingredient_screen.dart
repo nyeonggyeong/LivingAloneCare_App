@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:livingalonecare_app/screens/home_screen.dart';
@@ -16,32 +18,48 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
   final _formKey = GlobalKey<FormState>();
   final User? user = FirebaseAuth.instance.currentUser;
 
-  // 입력 컨트롤러 및 변수
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
+
+  // 기본 선택값
   String _selectedCategory = '채소';
   String _selectedStorage = '냉장';
   String _selectedUnit = '개';
-  DateTime _expiryDate = DateTime.now().add(const Duration(days: 7));
-  bool _isLoading = false;
+  DateTime _expiryDate = DateTime.now().add(const Duration(days: 7)); // 기본 7일 후
 
+  bool _isLoading = false;
   bool _showManualInputForm = false;
+
+  File? _pickedImage;
 
   final List<String> _categories = ['채소', '과일', '육류', '수산물', '유제품', '음료', '기타'];
   final List<String> _storageOptions = ['냉장', '냉동', '실온'];
-  final List<String> _units = ['개', 'g', 'kg', 'ml', 'L', '봉'];
+  final List<String> _units = ['개', 'g', 'kg', 'ml', 'L', '봉', '캔', '병'];
 
   int _selectedIndex = 2;
 
   // 이미지 선택 함수
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
-    // final XFile? image = await picker.pickImage(source: source);
 
-    print('${source == ImageSource.camera ? "카메라" : "갤러리"} 로직 실행');
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('이미지 선택 기능은 추후 구현 예정입니다!')));
+    try {
+      final XFile? image = await picker.pickImage(
+        source: source,
+        imageQuality: 50,
+      );
+
+      if (image != null) {
+        setState(() {
+          _pickedImage = File(image.path);
+          _showManualInputForm = true;
+        });
+      }
+    } catch (e) {
+      print('이미지 선택 오류: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('이미지를 불러오지 못했습니다.')));
+    }
   }
 
   // 날짜 선택
@@ -49,7 +67,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _expiryDate,
-      firstDate: DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime(2101),
     );
     if (picked != null && picked != _expiryDate) {
@@ -59,14 +77,48 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
     }
   }
 
-  // DB 저장
+  // 이미지 업로드 함수
+  Future<String?> _uploadImageToStorage() async {
+    if (_pickedImage == null) return null; // 이미지가 없으면 null 반환
+
+    try {
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      final Reference ref = FirebaseStorage.instance
+          .ref()
+          .child('user_images')
+          .child(user!.uid)
+          .child(fileName);
+
+      await ref.putFile(_pickedImage!);
+
+      final String downloadUrl = await ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print('이미지 업로드 실패: $e');
+      return null;
+    }
+  }
+
+  // 최종 저장 함수 (Firestore + Storage)
   Future<void> _saveIngredient() async {
+    FocusScope.of(context).unfocus();
+
     if (!_formKey.currentState!.validate()) return;
-    if (user == null) return;
+    if (user == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
+      String? imageUrl = await _uploadImageToStorage();
+
+      int quantity = int.tryParse(_quantityController.text) ?? 1;
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
@@ -74,17 +126,19 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
           .add({
             'name': _nameController.text.trim(),
             'category': _selectedCategory,
-            'quantity': int.tryParse(_quantityController.text) ?? 1,
+            'quantity': quantity,
             'unit': _selectedUnit,
             'storageLocation': _selectedStorage,
             'expiryDate': Timestamp.fromDate(_expiryDate),
             'registeredAt': FieldValue.serverTimestamp(),
+            'imageUrl': imageUrl,
           });
 
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('재료가 냉장고에 쏙! 들어갔어요 🥕')));
+      ).showSnackBar(const SnackBar(content: Text('재료와 사진이 냉장고에 쏙! 들어갔어요 🥕')));
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -101,6 +155,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
+
     if (index == 0) {
       Navigator.pushReplacement(
         context,
@@ -119,17 +174,18 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // 전체 배경 흰색
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
+          // 1. 상단 그라데이션 배경
           Container(
-            height: 280, // 상단 배경 높이
+            height: 280,
             width: double.infinity,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFFFFA36A), Color(0xFF99D279)], // 오렌지 -> 연두
+                colors: [Color(0xFFFFA36A), Color(0xFF99D279)],
               ),
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(30),
@@ -137,10 +193,12 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
               ),
             ),
           ),
+
+          // 2. 메인 콘텐츠
           SafeArea(
             child: Column(
               children: [
-                // 커스텀 앱바 영역
+                // 앱바
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -172,7 +230,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: 10),
-                        // 헤더 텍스트
                         const Text(
                           '재료 스캔하기',
                           style: TextStyle(
@@ -187,57 +244,101 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                           style: TextStyle(fontSize: 14, color: Colors.white70),
                         ),
                         const SizedBox(height: 30),
-                        Container(
-                          height: 250,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
+
+                        if (_pickedImage != null)
+                          // 사진이 선택되었을 때: 미리보기 표시
+                          Container(
+                            height: 250,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                              image: DecorationImage(
+                                image: FileImage(_pickedImage!),
+                                fit: BoxFit.cover,
                               ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              // 그라데이션 원형 아이콘
-                              Container(
-                                width: 80,
-                                height: 80,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Color(0xFFFFA36A),
-                                      Color(0xFF99D279),
-                                    ],
+                            ),
+                            child: Stack(
+                              children: [
+                                Positioned(
+                                  top: 10,
+                                  right: 10,
+                                  child: IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _pickedImage = null;
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                    ),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.black54,
+                                    ),
                                   ),
                                 ),
-                                child: const Icon(
-                                  Icons.camera_alt,
-                                  color: Colors.white,
-                                  size: 40,
+                              ],
+                            ),
+                          )
+                        else
+                          // 사진이 없을 때: 안내 문구 표시
+                          Container(
+                            height: 250,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.95),
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
                                 ),
-                              ),
-                              const SizedBox(height: 20),
-                              const Text(
-                                '카메라로 식재료를 촬영하세요',
-                                style: TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Color(0xFFFFA36A),
+                                        Color(0xFF99D279),
+                                      ],
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt,
+                                    color: Colors.white,
+                                    size: 40,
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 20),
+                                const Text(
+                                  '카메라로 식재료를 촬영하세요',
+                                  style: TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 30),
 
+                        // 버튼 영역: 사진 촬영
                         Container(
                           width: double.infinity,
                           height: 56,
@@ -282,6 +383,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                         ),
                         const SizedBox(height: 16),
 
+                        // 갤러리 선택 버튼
                         ElevatedButton(
                           onPressed: () => _pickImage(ImageSource.gallery),
                           style: ElevatedButton.styleFrom(
@@ -310,6 +412,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                         ),
                         const SizedBox(height: 16),
 
+                        // 직접 입력 토글 버튼
                         OutlinedButton(
                           onPressed: () {
                             setState(() {
@@ -347,52 +450,51 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                         ),
                         const SizedBox(height: 30),
 
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                const Color(
-                                  0xFFFFF3E0,
-                                ).withOpacity(0.5), // 연한 오렌지
-                                const Color(
-                                  0xFFE8F5E9,
-                                ).withOpacity(0.5), // 연한 초록
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.lightbulb,
-                                    color: Color(0xFFFFA36A),
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    '촬영 팁',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
+                        // 촬영 팁 (사진 없을 때만 표시)
+                        if (_pickedImage == null)
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  const Color(0xFFFFF3E0).withOpacity(0.5),
+                                  const Color(0xFFE8F5E9).withOpacity(0.5),
                                 ],
                               ),
-                              const SizedBox(height: 12),
-                              _buildTipItem('밝은 곳에서 촬영하세요'),
-                              _buildTipItem('재료가 잘 보이도록 가까이 찍으세요'),
-                              _buildTipItem('한 번에 최대 5개까지 인식 가능해요'),
-                            ],
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.lightbulb,
+                                      color: Color(0xFFFFA36A),
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      '촬영 팁',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                _buildTipItem('밝은 곳에서 촬영하세요'),
+                                _buildTipItem('재료가 잘 보이도록 가까이 찍으세요'),
+                                _buildTipItem('한 번에 최대 5개까지 인식 가능해요'),
+                              ],
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 30),
 
+                        // 직접 입력 폼 (Visibility)
                         Visibility(
                           visible: _showManualInputForm,
                           child: _buildManualInputForm(),
@@ -422,10 +524,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFE8C889), // 밝은 금색
-                    Color(0xFFD2AC6E), // 어두운 금색
-                  ],
+                  colors: [Color(0xFFE8C889), Color(0xFFD2AC6E)],
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -460,7 +559,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -646,6 +744,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                     ),
             ),
           ),
+          const SizedBox(height: 40),
         ],
       ),
     );
