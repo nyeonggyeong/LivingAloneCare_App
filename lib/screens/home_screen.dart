@@ -331,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              // 💡 3. 알림 아이콘 옆에 로그아웃 버튼 추가
+              // 알림 아이콘 옆에 로그아웃 버튼 추가
               Row(
                 children: [
                   IconButton(
@@ -357,7 +357,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
-          // ... (나머지 UI는 기존과 동일)
           Row(
             children: [
               Expanded(
@@ -424,7 +423,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 요약 카드 위젯
   Widget _buildSummaryCard({
     required IconData icon,
     required String title,

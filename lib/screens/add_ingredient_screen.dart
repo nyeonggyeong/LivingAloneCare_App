@@ -8,6 +8,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:livingalonecare_app/screens/home_screen.dart';
+import 'package:livingalonecare_app/data/ingredient_data.dart';
 
 class AddIngredientScreen extends StatefulWidget {
   const AddIngredientScreen({super.key});
@@ -67,7 +68,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
 
   // Cloud Functions로 이미지 전송 및 분석
   Future<void> _analyzeImage(File imageFile) async {
-    setState(() => _isAnalyzing = true); // 로딩 표시 시작
+    setState(() => _isAnalyzing = true);
 
     try {
       final bytes = await imageFile.readAsBytes();
@@ -81,24 +82,81 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
       final result = await callable.call({'image': base64Image});
 
       final data = result.data as Map<String, dynamic>;
-      final items = List<String>.from(data['items'] ?? []);
+      final List<dynamic> items = data['items'] ?? [];
 
       if (items.isNotEmpty) {
-        String detectedName = items[0];
+        String detectedName = "";
+
+        // 💡 3. IngredientData 클래스 사용 (필터링)
+        for (var item in items) {
+          bool isIgnored = IngredientData.ignoredLabels.any(
+            (label) => label.toLowerCase() == item.toString().toLowerCase(),
+          );
+
+          if (!isIgnored) {
+            detectedName = item;
+            break;
+          }
+        }
+        if (detectedName.isEmpty) detectedName = items[0];
+
+        // 💡 4. IngredientData 클래스 사용 (한글 변환)
+        String koreanName = detectedName;
+
+        if (IngredientData.translationMap.containsKey(detectedName)) {
+          koreanName = IngredientData.translationMap[detectedName]!;
+        } else {
+          for (var key in IngredientData.translationMap.keys) {
+            if (detectedName.toLowerCase().contains(key.toLowerCase())) {
+              koreanName = IngredientData.translationMap[key]!;
+              break;
+            }
+          }
+        }
 
         setState(() {
-          _nameController.text = detectedName;
+          _nameController.text = koreanName;
+
+          // 카테고리 자동 선택 (간단 예시 - 필요시 더 정교하게 수정 가능)
+          String lowerName =
+              koreanName.toLowerCase() + detectedName.toLowerCase();
+          if (lowerName.contains('apple') ||
+              lowerName.contains('banana') ||
+              lowerName.contains('fruit') ||
+              lowerName.contains('사과') ||
+              lowerName.contains('과일')) {
+            _selectedCategory = '과일';
+          } else if (lowerName.contains('onion') ||
+              lowerName.contains('carrot') ||
+              lowerName.contains('vegetable') ||
+              lowerName.contains('채소') ||
+              lowerName.contains('양파') ||
+              lowerName.contains('당근')) {
+            _selectedCategory = '채소';
+          } else if (lowerName.contains('meat') ||
+              lowerName.contains('pork') ||
+              lowerName.contains('beef') ||
+              lowerName.contains('chicken') ||
+              lowerName.contains('고기')) {
+            _selectedCategory = '육류';
+          } else if (lowerName.contains('milk') ||
+              lowerName.contains('dairy') ||
+              lowerName.contains('cheese') ||
+              lowerName.contains('우유') ||
+              lowerName.contains('치즈')) {
+            _selectedCategory = '유제품';
+          }
         });
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('AI가 "$detectedName"을(를) 찾았어요! 🤖')),
+          SnackBar(content: Text('AI가 "$koreanName"을(를) 찾았어요! 🤖')),
         );
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('재료를 인식하지 못했어요. 직접 입력해주세요.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('재료를 명확히 인식하지 못했습니다.')));
       }
     } catch (e) {
       print('AI 분석 에러: $e');
@@ -108,12 +166,11 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
       ).showSnackBar(const SnackBar(content: Text('AI 분석 중 오류가 발생했습니다.')));
     } finally {
       if (mounted) {
-        setState(() => _isAnalyzing = false); // 로딩 끝
+        setState(() => _isAnalyzing = false);
       }
     }
   }
 
-  // 날짜 선택
   Future<void> _pickDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
