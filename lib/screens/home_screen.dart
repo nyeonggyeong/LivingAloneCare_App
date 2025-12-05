@@ -57,9 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 0:
-        return _buildHomeContent(); // 기존 홈 화면 내용
+        return _buildHomeContent();
       case 1:
-        return const RecipeRecommendationScreen(); // 🍳 레시피 추천 화면 연결!
+        return const RecipeRecommendationScreen();
       case 3:
         return const Center(child: Text("커뮤니티 (준비중)"));
       case 4:
@@ -690,7 +690,8 @@ class IngredientImageHelper {
       imagePath = 'assets/images/tofu.png';
     else if (name.contains('돼지') || name.contains('삼겹살'))
       imagePath = 'assets/images/pork.png';
-
+    else if (name.contains('밥'))
+      imagePath = 'assets/images/rice.png';
     // 이미지가 있으면 반환
     if (imagePath != null) {
       return Image.asset(

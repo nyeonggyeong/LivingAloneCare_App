@@ -14,32 +14,24 @@ class RecipeDetailScreen extends StatefulWidget {
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   bool _isSearchingVideo = false; // 유튜브 검색 로딩 상태
 
-  // 📺 유튜브 검색 및 실행 함수
   Future<void> _openYoutube() async {
     setState(() => _isSearchingVideo = true);
 
     try {
-      // 1. 백엔드 함수 호출 (서울 리전 지정 필수!)
       final functions = FirebaseFunctions.instanceFor(
         region: 'asia-northeast3',
       );
       final callable = functions.httpsCallable('searchRecipeVideos');
 
-      // 2. 레시피 이름 보내기
       final result = await callable.call({
         'recipeName': widget.recipeData['name'],
       });
 
-      // 3. 결과 URL 받기
       final urlString = result.data['youtubeSearchUrl'] as String;
       final url = Uri.parse(urlString);
 
-      // 4. 유튜브 열기
       if (await canLaunchUrl(url)) {
-        await launchUrl(
-          url,
-          mode: LaunchMode.externalApplication,
-        ); // 앱 밖에서(브라우저/유튜브앱) 열기
+        await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
         throw 'Could not launch $url';
       }
@@ -65,7 +57,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // 1. 상단 이미지 (SliverAppBar)
           SliverAppBar(
             expandedHeight: 300.0,
             floating: false,
@@ -117,14 +108,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             ),
           ),
 
-          // 2. 내용 본문
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 기본 정보 & 유튜브 버튼
                   Row(
                     children: [
                       const Icon(
@@ -153,7 +142,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                       const Spacer(),
 
-                      // 🔴 유튜브 버튼
                       ElevatedButton.icon(
                         onPressed: _isSearchingVideo ? null : _openYoutube,
                         style: ElevatedButton.styleFrom(
@@ -200,7 +188,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // 재료 목록
                   const Text(
                     "필요한 재료",
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -209,14 +196,20 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF9F9F9),
+                      color: const Color(0xFFF9F9F9), // 연한 회색 박스
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.grey.shade200),
                     ),
                     child: Column(
                       children: ingredients.isEmpty
-                          ? [const Text("재료 정보가 없습니다.")]
+                          ? [
+                              const Text(
+                                "재료 정보가 없습니다.",
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ]
                           : ingredients.map((ing) {
+                              // 데이터 파싱 로직 (Map 또는 String 처리)
                               String name = "";
                               String quantity = "";
                               if (ing is String) {
@@ -224,10 +217,16 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                               } else if (ing is Map) {
                                 name = ing['name'] ?? ing['ingredientId'] ?? '';
                                 quantity = ing['quantityText'] ?? '';
+                                // quantityText가 없으면 숫자와 단위를 합쳐서 표시
+                                if (quantity.isEmpty &&
+                                    ing['quantity'] != null) {
+                                  quantity =
+                                      "${ing['quantity']}${ing['unit'] ?? ''}";
+                                }
                               }
                               return Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 6,
+                                  vertical: 8,
                                 ),
                                 child: Row(
                                   mainAxisAlignment:
@@ -235,14 +234,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                   children: [
                                     Text(
                                       name,
-                                      style: const TextStyle(fontSize: 16),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.black87,
+                                      ),
                                     ),
                                     Text(
                                       quantity,
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFFFFA36A),
+                                        color: Color(0xFFFFA36A), // 오렌지색 강조
                                       ),
                                     ),
                                   ],
@@ -253,7 +255,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // 조리 순서
                   const Text(
                     "조리 순서",
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -261,18 +262,19 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   const SizedBox(height: 16),
                   ListView.separated(
                     padding: EdgeInsets.zero,
-                    shrinkWrap: true,
+                    shrinkWrap: true, // ScrollView 안에서 ListView 사용 시 필수
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: steps.length,
                     separatorBuilder: (context, index) =>
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
                     itemBuilder: (context, index) {
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // 순서 번호 (초록색 원)
                           Container(
-                            width: 32,
-                            height: 32,
+                            width: 28,
+                            height: 28,
                             alignment: Alignment.center,
                             decoration: const BoxDecoration(
                               color: Color(0xFF99D279),
@@ -283,17 +285,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 14,
                               ),
                             ),
                           ),
                           const SizedBox(width: 16),
+                          // 설명 텍스트
                           Expanded(
                             child: Text(
-                              steps[index],
+                              steps[index].toString(),
                               style: const TextStyle(
                                 fontSize: 16,
-                                height: 1.6,
+                                height: 1.6, // 줄간격 조절로 가독성 확보
                                 color: Colors.black87,
                               ),
                             ),
