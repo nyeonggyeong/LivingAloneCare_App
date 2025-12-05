@@ -5,6 +5,7 @@ import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
 import 'package:livingalonecare_app/screens/inventory_screen.dart';
 import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
+import 'package:livingalonecare_app/data/ingredient_data.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,8 +23,6 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
-
-      // 로그인 화면으로 이동하면서 기존 화면 스택 모두 제거 (뒤로가기 방지)
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -38,9 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
     if (index == 2) {
       Navigator.push(
         context,
@@ -48,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
-
     setState(() {
       _selectedIndex = index;
     });
@@ -61,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return const RecipeRecommendationScreen();
       case 3:
-        return const Center(child: Text("커뮤니티 (준비중)"));
+        return const Center(child: Text("커뮤니티 화면 (준비중)"));
       case 4:
         return const Center(child: Text("마이페이지 (준비중)"));
       default:
@@ -77,49 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildTopSection(),
-
-            const SizedBox(height: 20),
-
-            _buildSectionTitle(
-              '유통기한 임박',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const InventoryScreen(
-                      sortType: InventorySortType.expiryDate,
-                    ),
-                  ),
-                );
-              },
-            ),
-            _buildExpiringList(),
-
-            const SizedBox(height: 20),
-
-            _buildSectionTitle(
-              '최근 추가한 재료',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const InventoryScreen(
-                      sortType: InventorySortType.registeredAt,
-                    ),
-                  ),
-                );
-              },
-            ),
-            _buildRecentList(),
-
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
+      body: _buildBody(),
 
       floatingActionButton: Container(
         width: 70,
@@ -706,32 +659,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class IngredientImageHelper {
   static Widget getImage(String name, String category) {
+    String searchName = name.toLowerCase();
     String? imagePath;
 
-    // 자주 쓰는 식재료 매핑
-    if (name.contains('우유'))
-      imagePath = 'assets/images/milk.png';
-    else if (name.contains('계란') || name.contains('달걀'))
-      imagePath = 'assets/images/egg.png';
-    else if (name.contains('양파'))
-      imagePath = 'assets/images/onion.png';
-    else if (name.contains('사과'))
-      imagePath = 'assets/images/apple.png';
-    else if (name.contains('당근'))
-      imagePath = 'assets/images/carrot.png';
-    else if (name.contains('대파') || name.contains('파'))
-      imagePath = 'assets/images/green_onion.png';
-    else if (name.contains('물'))
-      imagePath = 'assets/images/water.png';
-    else if (name.contains('김치'))
-      imagePath = 'assets/images/kimchi.png';
-    else if (name.contains('두부'))
-      imagePath = 'assets/images/tofu.png';
-    else if (name.contains('돼지') || name.contains('삼겹살'))
-      imagePath = 'assets/images/pork.png';
-    else if (name.contains('밥'))
-      imagePath = 'assets/images/rice.png';
-    // 이미지가 있으면 반환
+    // IngredientData.imageMap을 순회하며 이미지 찾기
+    for (var entry in IngredientData.imageMap.entries) {
+      if (searchName.contains(entry.key)) {
+        imagePath = entry.value;
+        break;
+      }
+    }
+
     if (imagePath != null) {
       return Image.asset(
         imagePath,
@@ -741,8 +679,7 @@ class IngredientImageHelper {
         },
       );
     }
-
-    return _getCategoryIcon(category); // 이미지 없으면 카테고리 아이콘 반환
+    return _getCategoryIcon(category);
   }
 
   static Widget _getCategoryIcon(String category) {
