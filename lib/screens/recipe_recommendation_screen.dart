@@ -29,6 +29,7 @@ class _RecipeRecommendationScreenState
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
+      print("❌ 유저가 로그인 상태가 아닙니다.");
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -38,9 +39,9 @@ class _RecipeRecommendationScreenState
       return;
     }
 
+    print("✅ 로그인 확인됨: ${user.uid}");
+
     try {
-      // 🚨 [중요 수정] 배포한 리전(asia-northeast3)을 꼭 지정해야 합니다!
-      // 지정하지 않으면 기본값인 us-central1(미국)을 찾아서 404 에러가 납니다.
       final functions = FirebaseFunctions.instanceFor(
         region: 'asia-northeast3',
       );
@@ -49,11 +50,11 @@ class _RecipeRecommendationScreenState
         'recommendRecipes',
       );
 
-      // 호출
       final result = await callable.call();
 
-      // 결과 처리
-      final data = result.data as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(result.data as Map);
+
+      print("✅ 서버 응답: ${data['message']}");
 
       if (mounted) {
         setState(() {
@@ -66,8 +67,7 @@ class _RecipeRecommendationScreenState
       if (mounted) {
         setState(() {
           _isLoading = false;
-          // 에러 메시지를 사용자에게 보여주려면 주석 해제
-          // _errorMessage = "레시피를 불러오지 못했습니다.";
+          // 필요 시 에러 메시지 표시
         });
       }
     }
@@ -76,16 +76,11 @@ class _RecipeRecommendationScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F9F9), // 전체 배경 연한 회색
+      backgroundColor: const Color(0xFFF9F9F9),
       body: Column(
         children: [
-          // 1. 상단 헤더 영역 (그라데이션 + 검색바 + 요약카드)
           _buildHeader(),
-
-          // 2. 탭 버튼 영역
           _buildTabs(),
-
-          // 3. 레시피 리스트 영역
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -100,11 +95,10 @@ class _RecipeRecommendationScreenState
                       horizontal: 20,
                       vertical: 10,
                     ),
-                    itemCount:
-                        _recommendations.length + 1, // +1 for Bottom Button
+                    itemCount: _recommendations.length + 1,
                     itemBuilder: (context, index) {
                       if (index == _recommendations.length) {
-                        return _buildMoreButton(); // 마지막에 '더보기' 버튼
+                        return _buildMoreButton();
                       }
                       return _buildRecipeCard(_recommendations[index]);
                     },
@@ -115,9 +109,6 @@ class _RecipeRecommendationScreenState
     );
   }
 
-  // --- 위젯 빌드 메서드 ---
-
-  // 1. 상단 헤더 (검색바 + 요약정보)
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
@@ -135,7 +126,6 @@ class _RecipeRecommendationScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 타이틀
           const Text(
             "레시피 추천",
             style: TextStyle(
@@ -152,8 +142,6 @@ class _RecipeRecommendationScreenState
             ),
           ),
           const SizedBox(height: 20),
-
-          // 검색바
           Container(
             height: 50,
             decoration: BoxDecoration(
@@ -177,8 +165,6 @@ class _RecipeRecommendationScreenState
             ),
           ),
           const SizedBox(height: 20),
-
-          // 요약 카드
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -232,7 +218,6 @@ class _RecipeRecommendationScreenState
     );
   }
 
-  // 2. 탭 버튼 (맞춤 추천 / 인기 레시피)
   Widget _buildTabs() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -292,7 +277,6 @@ class _RecipeRecommendationScreenState
     );
   }
 
-  // 3. 레시피 카드 아이템
   Widget _buildRecipeCard(dynamic recipe) {
     final double matchingRate = (recipe['matchingRate'] as num).toDouble();
     final List<dynamic> missing = recipe['missingIngredients'] ?? [];
@@ -303,7 +287,9 @@ class _RecipeRecommendationScreenState
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RecipeDetailScreen(recipeData: recipe),
+            builder: (context) => RecipeDetailScreen(
+              recipeData: Map<String, dynamic>.from(recipe as Map),
+            ),
           ),
         );
       },
@@ -324,7 +310,6 @@ class _RecipeRecommendationScreenState
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 왼쪽: 이미지 + 뱃지
             Stack(
               children: [
                 ClipRRect(
@@ -347,7 +332,6 @@ class _RecipeRecommendationScreenState
                     },
                   ),
                 ),
-                // 매칭률 뱃지 (왼쪽 상단)
                 Positioned(
                   top: 8,
                   left: 8,
@@ -358,8 +342,8 @@ class _RecipeRecommendationScreenState
                     ),
                     decoration: BoxDecoration(
                       color: matchingRate >= 100
-                          ? const Color(0xFF99D279).withOpacity(0.9) // 100% 녹색
-                          : const Color(0xFFFFA36A).withOpacity(0.9), // 그 외 오렌지
+                          ? const Color(0xFF99D279).withOpacity(0.9)
+                          : const Color(0xFFFFA36A).withOpacity(0.9),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -375,13 +359,10 @@ class _RecipeRecommendationScreenState
               ],
             ),
             const SizedBox(width: 16),
-
-            // 오른쪽: 정보
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 이름 + 하트 아이콘
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,8 +387,6 @@ class _RecipeRecommendationScreenState
                     ],
                   ),
                   const SizedBox(height: 6),
-
-                  // 태그 (냉파, 한식 등)
                   Wrap(
                     spacing: 6,
                     children: tags
@@ -416,8 +395,6 @@ class _RecipeRecommendationScreenState
                         .toList(),
                   ),
                   const SizedBox(height: 8),
-
-                  // 부족 재료 (오렌지색 텍스트)
                   if (missing.isNotEmpty)
                     Row(
                       children: [
@@ -450,10 +427,7 @@ class _RecipeRecommendationScreenState
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                   const SizedBox(height: 8),
-
-                  // 메타 정보 (시간, 인분, 난이도)
                   Row(
                     children: [
                       const Icon(
@@ -504,12 +478,11 @@ class _RecipeRecommendationScreenState
     );
   }
 
-  // 꼬마 태그 위젯
   Widget _buildTag(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3E0), // 연한 오렌지 배경
+        color: const Color(0xFFFFF3E0),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -523,7 +496,6 @@ class _RecipeRecommendationScreenState
     );
   }
 
-  // 하단 더보기 버튼
   Widget _buildMoreButton() {
     return Container(
       margin: const EdgeInsets.only(top: 10, bottom: 30),
@@ -543,7 +515,6 @@ class _RecipeRecommendationScreenState
     );
   }
 
-  // 데이터 없을 때 화면
   Widget _buildEmptyView() {
     return Center(
       child: Column(
@@ -559,7 +530,6 @@ class _RecipeRecommendationScreenState
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
-              // 새로고침
               setState(() {
                 _isLoading = true;
               });
