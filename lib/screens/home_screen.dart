@@ -77,8 +77,49 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildTopSection(),
 
-      body: _buildBody(),
+            const SizedBox(height: 20),
+
+            _buildSectionTitle(
+              '유통기한 임박',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const InventoryScreen(
+                      sortType: InventorySortType.expiryDate,
+                    ),
+                  ),
+                );
+              },
+            ),
+            _buildExpiringList(),
+
+            const SizedBox(height: 20),
+
+            _buildSectionTitle(
+              '최근 추가한 재료',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const InventoryScreen(
+                      sortType: InventorySortType.registeredAt,
+                    ),
+                  ),
+                );
+              },
+            ),
+            _buildRecentList(),
+
+            const SizedBox(height: 80),
+          ],
+        ),
+      ),
 
       floatingActionButton: Container(
         width: 70,
