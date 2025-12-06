@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
+import 'package:livingalonecare_app/screens/inventory_screen.dart';
+import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
+import 'package:livingalonecare_app/screens/login_screen.dart';
+import 'package:livingalonecare_app/data/ingredient_data.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,47 +18,61 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   final User? user = FirebaseAuth.instance.currentUser;
-  // 하단 탭 선택 시 호출되는 함수
+
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      print("로그아웃 오류: $e");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그아웃 중 오류가 발생했습니다.')));
+    }
+  }
+
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
     if (index == 2) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const AddIngredientScreen()),
       );
-      return; // 탭 상태(색상)는 변경하지 않고 함수 종료
+      return;
     }
-
     setState(() {
       _selectedIndex = index;
     });
   }
 
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildHomeContent();
+      case 1:
+        return const RecipeRecommendationScreen();
+      case 3:
+        return const Center(child: Text("커뮤니티 화면 (준비중)"));
+      case 4:
+        return const Center(child: Text("마이페이지 (준비중)"));
+      default:
+        return _buildHomeContent();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (user == null) {
+      return const Scaffold(body: Center(child: Text("로그인이 필요합니다.")));
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildTopSection(),
-
-            const SizedBox(height: 20),
-
-            _buildSectionTitle('유통기한 임박', onTap: () {}),
-            _buildExpiringList(),
-
-            const SizedBox(height: 20),
-
-            _buildSectionTitle('최근 추가한 재료', onTap: () {}),
-            _buildRecentList(),
-
-            const SizedBox(height: 80),
-          ],
-        ),
-      ),
+      body: _buildBody(),
 
       floatingActionButton: Container(
         width: 70,
@@ -70,10 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFE8C889), // 밝은 금색
-                    Color(0xFFD2AC6E), // 어두운 금색
-                  ],
+                  colors: [Color(0xFFE8C889), Color(0xFFD2AC6E)],
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -95,9 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 4),
-
             const Text(
               '등록',
               style: TextStyle(
@@ -109,9 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
+      // 하단 내비게이션 바
       bottomNavigationBar: BottomAppBar(
         color: Colors.white,
         elevation: 10,
@@ -120,34 +133,27 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 1. 홈 (가장 왼쪽)
             _buildTabItem(
               index: 0,
               icon: Icons.home_outlined,
               activeIcon: Icons.home,
               label: '홈',
             ),
-
             const SizedBox(width: 45),
-
             _buildTabItem(
               index: 1,
               icon: Icons.menu_book_outlined,
               activeIcon: Icons.menu_book,
               label: '레시피',
             ),
-
             const SizedBox(width: 120),
-
             _buildTabItem(
               index: 3,
               icon: Icons.people_outline,
               activeIcon: Icons.people,
               label: '커뮤니티',
             ),
-
             const SizedBox(width: 45),
-
             _buildTabItem(
               index: 4,
               icon: Icons.person_outline,
@@ -156,6 +162,52 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHomeContent() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildTopSection(),
+
+          const SizedBox(height: 20),
+
+          _buildSectionTitle(
+            '유통기한 임박',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const InventoryScreen(
+                    sortType: InventorySortType.expiryDate,
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildExpiringList(),
+
+          const SizedBox(height: 20),
+
+          _buildSectionTitle(
+            '최근 추가한 재료',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const InventoryScreen(
+                    sortType: InventorySortType.registeredAt,
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildRecentList(),
+
+          const SizedBox(height: 80),
+        ],
       ),
     );
   }
@@ -196,12 +248,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildTopSection() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 30), // 상단 여백 확보
+      padding: const EdgeInsets.fromLTRB(24, 60, 24, 30),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFA36A), Color(0xFF99D279)], // 오렌지 -> 녹색
+          colors: [Color(0xFFFFA36A), Color(0xFF99D279)],
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(30),
@@ -211,7 +263,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 인사말 & 알림 아이콘
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -224,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    '오늘은 뭐 먹을까요?', // 닉네임 연동 시
+                    '오늘은 뭐 먹을까요?',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 26,
@@ -233,39 +284,52 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.notifications,
-                  color: Colors.white,
-                  size: 28,
-                ),
+              // 알림 아이콘 옆에 로그아웃 버튼 추가
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () {},
+                    icon: const Icon(
+                      Icons.notifications,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _signOut, // 로그아웃 기능 연결
+                    tooltip: "로그아웃",
+                    icon: const Icon(
+                      Icons.logout,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 20),
 
-          GestureDetector(
-            onTap: () {
-              _onItemTapped(2);
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              // ... (기존 스타일 코드)
-              child: const Row(
-                // ... (기존 Row 코드)
-              ),
-            ),
-          ),
-
           Row(
             children: [
               Expanded(
-                child: _buildSummaryCard(
-                  icon: Icons.kitchen,
-                  title: '보유 재료',
-                  value: '24개',
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user!.uid)
+                      .collection('inventory')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    String countText = '...';
+                    if (snapshot.hasData) {
+                      countText = '${snapshot.data!.docs.length}개';
+                    }
+                    return _buildSummaryCard(
+                      icon: Icons.kitchen,
+                      title: '보유 재료',
+                      value: countText,
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 16),
@@ -280,28 +344,31 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2), // 반투명 배경
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white30),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  '재료 스캔하고 레시피 추천받기',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+          GestureDetector(
+            onTap: () => _onItemTapped(2),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white30),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    '재료 스캔하고 레시피 추천받기',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -309,7 +376,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 요약 카드 위젯
   Widget _buildSummaryCard({
     required IconData icon,
     required String title,
@@ -531,18 +597,15 @@ class _HomeScreenState extends State<HomeScreen> {
         .collection('users')
         .doc(user!.uid)
         .collection('inventory')
-        .orderBy('expiryDate', descending: true);
-
+        .orderBy('registeredAt', descending: true);
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
         final docs = snapshot.data!.docs;
-
         if (docs.isEmpty) return const SizedBox();
-
         return SizedBox(
-          height: 140,
+          height: 150,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             scrollDirection: Axis.horizontal,
@@ -552,12 +615,11 @@ class _HomeScreenState extends State<HomeScreen> {
               final data = docs[index].data() as Map<String, dynamic>;
               String name = data['name'] ?? '알 수 없음';
               String category = data['category'] ?? '기타';
-
               return Column(
                 children: [
                   Container(
-                    width: 70,
-                    height: 70,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
@@ -569,7 +631,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: const EdgeInsets.all(14.0),
                       child: IngredientImageHelper.getImage(name, category),
                     ),
                   ),
@@ -597,31 +659,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class IngredientImageHelper {
   static Widget getImage(String name, String category) {
+    String searchName = name.toLowerCase();
     String? imagePath;
 
-    // 자주 쓰는 식재료 매핑
-    if (name.contains('우유'))
-      imagePath = 'assets/images/milk.png';
-    else if (name.contains('계란') || name.contains('달걀'))
-      imagePath = 'assets/images/egg.png';
-    else if (name.contains('양파'))
-      imagePath = 'assets/images/onion.png';
-    else if (name.contains('사과'))
-      imagePath = 'assets/images/apple.png';
-    else if (name.contains('당근'))
-      imagePath = 'assets/images/carrot.png';
-    else if (name.contains('대파') || name.contains('파'))
-      imagePath = 'assets/images/green_onion.png';
-    else if (name.contains('물'))
-      imagePath = 'assets/images/water.png';
-    else if (name.contains('김치'))
-      imagePath = 'assets/images/kimchi.png';
-    else if (name.contains('두부'))
-      imagePath = 'assets/images/tofu.png';
-    else if (name.contains('돼지') || name.contains('삼겹살'))
-      imagePath = 'assets/images/pork.png';
+    // IngredientData.imageMap을 순회하며 이미지 찾기
+    for (var entry in IngredientData.imageMap.entries) {
+      if (searchName.contains(entry.key)) {
+        imagePath = entry.value;
+        break;
+      }
+    }
 
-    // 이미지가 있으면 반환
     if (imagePath != null) {
       return Image.asset(
         imagePath,
@@ -631,8 +679,7 @@ class IngredientImageHelper {
         },
       );
     }
-
-    return _getCategoryIcon(category); // 이미지 없으면 카테고리 아이콘 반환
+    return _getCategoryIcon(category);
   }
 
   static Widget _getCategoryIcon(String category) {

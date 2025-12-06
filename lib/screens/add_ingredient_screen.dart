@@ -1,11 +1,14 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:livingalonecare_app/screens/home_screen.dart';
+import 'package:livingalonecare_app/data/ingredient_data.dart';
 
 class AddIngredientScreen extends StatefulWidget {
   const AddIngredientScreen({super.key});
@@ -21,13 +24,13 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
 
-  // 기본 선택값
   String _selectedCategory = '채소';
   String _selectedStorage = '냉장';
   String _selectedUnit = '개';
-  DateTime _expiryDate = DateTime.now().add(const Duration(days: 7)); // 기본 7일 후
+  DateTime _expiryDate = DateTime.now().add(const Duration(days: 7));
 
   bool _isLoading = false;
+  bool _isAnalyzing = false;
   bool _showManualInputForm = false;
 
   File? _pickedImage;
@@ -38,14 +41,16 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
 
   int _selectedIndex = 2;
 
-  // 이미지 선택 함수
+  // 이미지 선택 및 AI 분석 시작
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
 
     try {
       final XFile? image = await picker.pickImage(
         source: source,
-        imageQuality: 50,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 80,
       );
 
       if (image != null) {
@@ -53,16 +58,119 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
           _pickedImage = File(image.path);
           _showManualInputForm = true;
         });
+
+        await _analyzeImage(File(image.path));
       }
     } catch (e) {
       print('이미지 선택 오류: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('이미지를 불러오지 못했습니다.')));
     }
   }
 
-  // 날짜 선택
+  // Cloud Functions로 이미지 전송 및 분석
+  Future<void> _analyzeImage(File imageFile) async {
+    setState(() => _isAnalyzing = true);
+
+    try {
+      final bytes = await imageFile.readAsBytes();
+      final base64Image = base64Encode(bytes);
+
+      final functions = FirebaseFunctions.instanceFor(
+        region: 'asia-northeast3',
+      );
+      final callable = functions.httpsCallable('analyzeImage');
+
+      final result = await callable.call({'image': base64Image});
+
+      final data = result.data as Map<String, dynamic>;
+      final List<dynamic> items = data['items'] ?? [];
+
+      if (items.isNotEmpty) {
+        String detectedName = "";
+
+        // 💡 3. IngredientData 클래스 사용 (필터링)
+        for (var item in items) {
+          bool isIgnored = IngredientData.ignoredLabels.any(
+            (label) => label.toLowerCase() == item.toString().toLowerCase(),
+          );
+
+          if (!isIgnored) {
+            detectedName = item;
+            break;
+          }
+        }
+        if (detectedName.isEmpty) detectedName = items[0];
+
+        // 💡 4. IngredientData 클래스 사용 (한글 변환)
+        String koreanName = detectedName;
+
+        if (IngredientData.translationMap.containsKey(detectedName)) {
+          koreanName = IngredientData.translationMap[detectedName]!;
+        } else {
+          for (var key in IngredientData.translationMap.keys) {
+            if (detectedName.toLowerCase().contains(key.toLowerCase())) {
+              koreanName = IngredientData.translationMap[key]!;
+              break;
+            }
+          }
+        }
+
+        setState(() {
+          _nameController.text = koreanName;
+
+          // 카테고리 자동 선택 (간단 예시 - 필요시 더 정교하게 수정 가능)
+          String lowerName =
+              koreanName.toLowerCase() + detectedName.toLowerCase();
+          if (lowerName.contains('apple') ||
+              lowerName.contains('banana') ||
+              lowerName.contains('fruit') ||
+              lowerName.contains('사과') ||
+              lowerName.contains('과일')) {
+            _selectedCategory = '과일';
+          } else if (lowerName.contains('onion') ||
+              lowerName.contains('carrot') ||
+              lowerName.contains('vegetable') ||
+              lowerName.contains('채소') ||
+              lowerName.contains('양파') ||
+              lowerName.contains('당근')) {
+            _selectedCategory = '채소';
+          } else if (lowerName.contains('meat') ||
+              lowerName.contains('pork') ||
+              lowerName.contains('beef') ||
+              lowerName.contains('chicken') ||
+              lowerName.contains('고기')) {
+            _selectedCategory = '육류';
+          } else if (lowerName.contains('milk') ||
+              lowerName.contains('dairy') ||
+              lowerName.contains('cheese') ||
+              lowerName.contains('우유') ||
+              lowerName.contains('치즈')) {
+            _selectedCategory = '유제품';
+          }
+        });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI가 "$koreanName"을(를) 찾았어요! 🤖')),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('재료를 명확히 인식하지 못했습니다.')));
+      }
+    } catch (e) {
+      print('AI 분석 에러: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('AI 분석 중 오류가 발생했습니다.')));
+    } finally {
+      if (mounted) {
+        setState(() => _isAnalyzing = false);
+      }
+    }
+  }
+
   Future<void> _pickDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -77,13 +185,12 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
     }
   }
 
-  // 이미지 업로드 함수
+  // 이미지 업로드 (Storage)
   Future<String?> _uploadImageToStorage() async {
-    if (_pickedImage == null) return null; // 이미지가 없으면 null 반환
+    if (_pickedImage == null) return null;
 
     try {
       final String fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-
       final Reference ref = FirebaseStorage.instance
           .ref()
           .child('user_images')
@@ -91,40 +198,42 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
           .child(fileName);
 
       await ref.putFile(_pickedImage!);
-
-      final String downloadUrl = await ref.getDownloadURL();
-      return downloadUrl;
+      return await ref.getDownloadURL();
     } catch (e) {
       print('이미지 업로드 실패: $e');
       return null;
     }
   }
 
-  // 최종 저장 함수 (Firestore + Storage)
+  // 최종 저장 (Firestore)
   Future<void> _saveIngredient() async {
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) return;
-    if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
-      return;
-    }
+    if (user == null) return;
 
     setState(() => _isLoading = true);
 
     try {
       String? imageUrl = await _uploadImageToStorage();
+      String quantityText = _quantityController.text.trim();
+      dynamic quantity;
 
-      int quantity = int.tryParse(_quantityController.text) ?? 1;
+      if (quantityText.contains('.')) {
+        quantity = double.tryParse(quantityText) ?? 1.0;
+      } else {
+        quantity = int.tryParse(quantityText) ?? 1;
+      }
+
+      String name = _nameController.text.trim();
 
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
           .collection('inventory')
           .add({
-            'name': _nameController.text.trim(),
+            'ingredientId': name, // 레시피 매칭용 ID
+            'name': name,
             'category': _selectedCategory,
             'quantity': quantity,
             'unit': _selectedUnit,
@@ -137,7 +246,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('재료와 사진이 냉장고에 쏙! 들어갔어요 🥕')));
+      ).showSnackBar(const SnackBar(content: Text('재료가 냉장고에 쏙! 들어갔어요 🥕')));
 
       Navigator.pushReplacement(
         context,
@@ -155,7 +264,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
-
     if (index == 0) {
       Navigator.pushReplacement(
         context,
@@ -177,7 +285,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // 1. 상단 그라데이션 배경
           Container(
             height: 280,
             width: double.infinity,
@@ -194,7 +301,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
             ),
           ),
 
-          // 2. 메인 콘텐츠
           SafeArea(
             child: Column(
               children: [
@@ -245,8 +351,8 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                         ),
                         const SizedBox(height: 30),
 
+                        // 카메라/미리보기 영역
                         if (_pickedImage != null)
-                          // 사진이 선택되었을 때: 미리보기 표시
                           Container(
                             height: 250,
                             decoration: BoxDecoration(
@@ -265,6 +371,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                             ),
                             child: Stack(
                               children: [
+                                // 사진 닫기 버튼
                                 Positioned(
                                   top: 10,
                                   right: 10,
@@ -272,6 +379,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                                     onPressed: () {
                                       setState(() {
                                         _pickedImage = null;
+                                        _nameController.clear(); // 이름도 초기화
                                       });
                                     },
                                     icon: const Icon(
@@ -283,11 +391,35 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                                     ),
                                   ),
                                 ),
+                                if (_isAnalyzing)
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black45,
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                    child: const Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          CircularProgressIndicator(
+                                            color: Colors.white,
+                                          ),
+                                          SizedBox(height: 16),
+                                          Text(
+                                            "AI 분석 중...",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           )
                         else
-                          // 사진이 없을 때: 안내 문구 표시
                           Container(
                             height: 250,
                             decoration: BoxDecoration(
@@ -338,7 +470,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                           ),
                         const SizedBox(height: 30),
 
-                        // 버튼 영역: 사진 촬영
+                        // 버튼들
                         Container(
                           width: double.infinity,
                           height: 56,
@@ -383,7 +515,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // 갤러리 선택 버튼
                         ElevatedButton(
                           onPressed: () => _pickImage(ImageSource.gallery),
                           style: ElevatedButton.styleFrom(
@@ -412,7 +543,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // 직접 입력 토글 버튼
                         OutlinedButton(
                           onPressed: () {
                             setState(() {
@@ -450,7 +580,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                         ),
                         const SizedBox(height: 30),
 
-                        // 촬영 팁 (사진 없을 때만 표시)
                         if (_pickedImage == null)
                           Container(
                             padding: const EdgeInsets.all(20),
@@ -494,7 +623,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                           ),
                         const SizedBox(height: 30),
 
-                        // 직접 입력 폼 (Visibility)
+                        // 직접 입력 폼
                         Visibility(
                           visible: _showManualInputForm,
                           child: _buildManualInputForm(),
@@ -510,6 +639,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
           ),
         ],
       ),
+      // 중앙 플로팅 버튼
       floatingActionButton: Container(
         width: 70,
         height: 90,
@@ -660,7 +790,9 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                     _buildLabel('수량'),
                     TextFormField(
                       controller: _quantityController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: _inputDecoration('1'),
                       validator: (value) =>
                           value == null || value.isEmpty ? '수량 입력' : null,
