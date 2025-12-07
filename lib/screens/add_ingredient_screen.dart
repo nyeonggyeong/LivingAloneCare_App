@@ -87,7 +87,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
       if (items.isNotEmpty) {
         String detectedName = "";
 
-        // 💡 3. IngredientData 클래스 사용 (필터링)
         for (var item in items) {
           bool isIgnored = IngredientData.ignoredLabels.any(
             (label) => label.toLowerCase() == item.toString().toLowerCase(),
@@ -98,65 +97,43 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
             break;
           }
         }
+
         if (detectedName.isEmpty) detectedName = items[0];
 
-        // 💡 4. IngredientData 클래스 사용 (한글 변환)
-        String koreanName = detectedName;
-
-        if (IngredientData.translationMap.containsKey(detectedName)) {
-          koreanName = IngredientData.translationMap[detectedName]!;
-        } else {
-          for (var key in IngredientData.translationMap.keys) {
-            if (detectedName.toLowerCase().contains(key.toLowerCase())) {
-              koreanName = IngredientData.translationMap[key]!;
-              break;
-            }
-          }
-        }
-
         setState(() {
-          _nameController.text = koreanName;
+          _nameController.text = detectedName;
 
-          // 카테고리 자동 선택 (간단 예시 - 필요시 더 정교하게 수정 가능)
-          String lowerName =
-              koreanName.toLowerCase() + detectedName.toLowerCase();
-          if (lowerName.contains('apple') ||
-              lowerName.contains('banana') ||
-              lowerName.contains('fruit') ||
-              lowerName.contains('사과') ||
-              lowerName.contains('과일')) {
+          // 카테고리 자동 선택 (한글 기준)
+          if (detectedName.contains('과일') ||
+              detectedName.contains('사과') ||
+              detectedName.contains('바나나')) {
             _selectedCategory = '과일';
-          } else if (lowerName.contains('onion') ||
-              lowerName.contains('carrot') ||
-              lowerName.contains('vegetable') ||
-              lowerName.contains('채소') ||
-              lowerName.contains('양파') ||
-              lowerName.contains('당근')) {
+          } else if (detectedName.contains('채소') ||
+              detectedName.contains('야채') ||
+              detectedName.contains('양파') ||
+              detectedName.contains('당근')) {
             _selectedCategory = '채소';
-          } else if (lowerName.contains('meat') ||
-              lowerName.contains('pork') ||
-              lowerName.contains('beef') ||
-              lowerName.contains('chicken') ||
-              lowerName.contains('고기')) {
+          } else if (detectedName.contains('고기') ||
+              detectedName.contains('육류') ||
+              detectedName.contains('돼지') ||
+              detectedName.contains('소')) {
             _selectedCategory = '육류';
-          } else if (lowerName.contains('milk') ||
-              lowerName.contains('dairy') ||
-              lowerName.contains('cheese') ||
-              lowerName.contains('우유') ||
-              lowerName.contains('치즈')) {
+          } else if (detectedName.contains('우유') ||
+              detectedName.contains('치즈') ||
+              detectedName.contains('유제품')) {
             _selectedCategory = '유제품';
           }
         });
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('AI가 "$koreanName"을(를) 찾았어요! 🤖')),
+          SnackBar(content: Text('AI가 "$detectedName"을(를) 찾았어요! 🤖')),
         );
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('재료를 명확히 인식하지 못했습니다.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('재료를 인식하지 못했어요. 직접 입력해주세요.')),
+        );
       }
     } catch (e) {
       print('AI 분석 에러: $e');
