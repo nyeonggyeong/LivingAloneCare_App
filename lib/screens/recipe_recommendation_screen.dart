@@ -149,7 +149,7 @@ class _RecipeRecommendationScreenState
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: "냉파 레시피 검색...",
+                hintText: "냉장고 파먹을 레시피 검색...",
                 hintStyle: TextStyle(color: Colors.white70),
                 prefixIcon: Icon(Icons.search, color: Colors.white70),
                 border: InputBorder.none,
