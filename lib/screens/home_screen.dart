@@ -9,6 +9,7 @@ import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:livingalonecare_app/data/ingredient_data.dart';
 import 'package:livingalonecare_app/screens/notification_screen.dart';
+import 'package:livingalonecare_app/screens/community_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -198,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return const RecipeRecommendationScreen();
       case 3:
-        return const Center(child: Text("커뮤니티 화면 (준비중)"));
+        return const CommunityScreen();
       case 4:
         return const MyPageScreen();
       default:
