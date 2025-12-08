@@ -266,6 +266,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         'content': _contentController.text,
         'tags': _tags,
         'imageUrls': imageUrls,
+        'likes': [], // 좋아요를 누른 사용자 UID 리스트 초기화
         'likeCount': 0,
         'commentCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
@@ -476,28 +477,60 @@ class _CommunityScreenState extends State<CommunityScreen> {
           // 좋아요 / 댓글 카운트
           Row(
             children: [
-              Icon(Icons.favorite_border, color: Colors.grey[600], size: 22),
+              // 좋아요 버튼 (IconButton으로 변경)
+              IconButton(
+                padding: EdgeInsets.zero, // IconButton의 기본 패딩 제거
+                constraints: const BoxConstraints(), // 크기 제약 조건 제거
+                icon: Icon(
+                  // post['likes']는 좋아요를 누른 사용자 UID 리스트
+                  // 현재 로그인된 사용자(user?.uid)가 이 리스트에 포함되어 있는지 확인
+                  post['likes'] != null && (post['likes'] as List).contains(user?.uid)
+                    ? Icons.favorite // 좋아요를 누른 상태
+                    : Icons.favorite_border, // 좋아요를 누르지 않은 상태
+                  color: post['likes'] != null && (post['likes'] as List).contains(user?.uid)
+                    ? Colors.redAccent // 누르면 빨간색
+                    : Colors.grey[600], // 안 누르면 회색
+                  size: 22,
+                ),
+                onPressed: () {
+                  // user는 _buildPostCard 상단에서 FirebaseAuth.instance.currentUser로 가져온 변수
+                  if (user == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('로그인이 필요합니다.')));
+                    return;
+                  }
+                  // 좋아요 토글 함수 호출
+                  _toggleLike(
+                    postId,
+                    post['likes'] as List<dynamic>? ?? [],
+                  );
+                },
+              ),
+              
               const SizedBox(width: 6),
+              // 좋아요 카운트 (likes 리스트의 길이를 사용)
               Text(
-                '${post['likeCount'] ?? 0}',
+                '${(post['likes'] as List<dynamic>? ?? []).length}',
                 style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
               const SizedBox(width: 20),
+    
               Icon(
                 Icons.chat_bubble_outline,
                 color: Colors.grey[600],
                 size: 20,
               ),
               const SizedBox(width: 6),
+
               Text(
                 '${post['commentCount'] ?? 0}',
                 style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
             ],
           ),
-        ],
+        ], 
       ),
-    );
+    ); 
   }
 
   String _formatTimestamp(Timestamp timestamp) {
@@ -554,6 +587,36 @@ class _CommunityScreenState extends State<CommunityScreen> {
             SnackBar(content: Text('삭제 실패: $e')),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _toggleLike(String postId, List<dynamic> currentLikes) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return; // 로그인 안 되어 있으면 중단
+
+    final postRef = FirebaseFirestore.instance.collection('posts').doc(postId);
+    final userId = user.uid;
+
+    try {
+      if (currentLikes.contains(userId)) {
+        // 이미 좋아요를 눌렀다면: 좋아요 취소 (사용자 UID 제거)
+        await postRef.update({
+          'likes': FieldValue.arrayRemove([userId]),
+          'likeCount': FieldValue.increment(-1),
+        });
+      } else {
+        // 좋아요를 누르지 않았다면: 좋아요 추가 (사용자 UID 추가)
+        await postRef.update({
+          'likes': FieldValue.arrayUnion([userId]),
+          'likeCount': FieldValue.increment(1),
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('좋아요 업데이트 실패: $e')),
+        );
       }
     }
   }
