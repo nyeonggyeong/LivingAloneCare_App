@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
 import 'package:livingalonecare_app/screens/inventory_screen.dart';
+import 'package:livingalonecare_app/screens/my_page_screen.dart';
 import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:livingalonecare_app/data/ingredient_data.dart';
@@ -199,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 3:
         return const Center(child: Text("커뮤니티 화면 (준비중)"));
       case 4:
-        return const Center(child: Text("마이페이지 (준비중)"));
+        return const MyPageScreen();
       default:
         return _buildHomeContent();
     }
