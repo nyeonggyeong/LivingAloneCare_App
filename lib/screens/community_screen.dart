@@ -321,8 +321,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 댓글 목록을 표시하는 부분 (3단계에서 구현)
-                Expanded(
+                // 댓글 목록을 표시하는 부분
+                Container(
+                  // 화면 높이의 40%를 댓글 목록 공간으로 사용
+                  height: MediaQuery.of(context).size.height * 0.4, 
                   child: _buildCommentList(postId),
                 ),
 
