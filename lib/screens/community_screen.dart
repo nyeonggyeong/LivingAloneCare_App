@@ -44,7 +44,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       body: Column(
         children: [
           _buildHeader(),
-          Expanded(child: _buildPostList()),
+          Expanded(child: _buildListContent()),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -360,31 +360,76 @@ class _CommunityScreenState extends State<CommunityScreen> {
     });  
   }
 
-  Widget _buildPostList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData)
-          return const Center(child: CircularProgressIndicator());
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) return const Center(child: Text("게시글이 없습니다."));
+  Widget _buildListContent() {
+    // 탭 인덱스에 따라 다른 컬렉션 또는 쿼리를 사용
+    if (_selectedTabIndex == 0) {
+      // 0번 인덱스: '게시글' (기존 로직)
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('posts')
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
+          final docs = snapshot.data!.docs;
+          if (docs.isEmpty) return const Center(child: Text("게시글이 없습니다."));
 
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          itemCount: docs.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 20),
-          itemBuilder: (context, index) {
-            final doc = docs[index]; // DocumentSnapshot 객체 가져오기
-            final data = doc.data() as Map<String, dynamic>;
-            // doc.id를 두 번째 인자로 전달
-            return _buildPostCard(data, doc.id);
-          },
-        );
-      },
-    );
+          return ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            itemCount: docs.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 20),
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+              return _buildPostCard(data, doc.id);
+            },
+          );
+        },
+      );
+    } else if (_selectedTabIndex == 1) {
+      // 1번 인덱스: '공동구매' (새로운 로직)
+      // Firestore에 'group_buys' 컬렉션이 있다고 가정
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('group_buys') // 공동구매 컬렉션을 가리킴.
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
+          final docs = snapshot.data!.docs;
+
+          // 임시 : 공동구매 데이터를 표시하는 별도의 위젯이 없으므로 임시 텍스트를 표시
+          if (docs.isEmpty) return const Center(child: Text("공동구매 상품이 없습니다."));
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+
+              // 이곳에 공동구매 목록을 표시하는 _buildGroupBuyCard(data, doc.id) 같은 위젯을 사용해야 함.
+              // 현재는 임시로 텍스트를 표시
+              return Container(
+                padding: const EdgeInsets.all(15),
+                margin: const EdgeInsets.only(bottom: 15),
+                decoration: BoxDecoration(
+                  color: Colors.lightGreen[50],
+                  borderRadius: BorderRadius.circular(15)
+                ),
+                child: Text(
+                  '공동구매 상품: ${data['title'] ?? '제목 없음'}', 
+                  style: const TextStyle(fontWeight: FontWeight.bold)
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   // 함수 시그니처 수정: postId 인자 추가
