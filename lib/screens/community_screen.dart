@@ -776,6 +776,66 @@ class _CommunityScreenState extends State<CommunityScreen> {
     }
   }
 
+  Future<void> _deleteComment(String postId, String commentId) async {
+    try {
+      // 댓글 문서 삭제 (Sub-collection)
+      await FirebaseFirestore.instance
+          .collection('posts')
+         .doc(postId)
+          .collection('comments')
+          .doc(commentId)
+          .delete();
+
+      // 상위 게시글의 commentCount 필드 1 감소
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(postId)
+          .update({'commentCount': FieldValue.increment(-1)});
+
+      // 성공 피드백
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('댓글이 삭제되었습니다.')),
+        );
+      }
+    } catch (e) {
+      print('댓글 삭제 실패: $e');
+      // 실패 피드백
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('댓글 삭제에 실패했습니다.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showDeleteConfirmationDialog(String postId, String commentId) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('댓글 삭제'),
+          content: const Text('정말로 이 댓글을 삭제하시겠습니까?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('삭제', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _deleteComment(postId, commentId); // 삭제 함수 호출
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 60, 24, 20),
@@ -872,8 +932,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
         return ListView.builder(
           itemCount: docs.length,
           itemBuilder: (context, index) {
-            final comment = docs[index].data() as Map<String, dynamic>;
-            return _buildCommentItem(comment);
+            final doc = docs[index]; // DocumentSnapshot 객체
+            final comment = doc.data() as Map<String, dynamic>;
+
+            // postId와 doc.id (commentId)를 함께 전달
+            return _buildCommentItem(comment, postId, doc.id);
           },
         );
       },
@@ -881,10 +944,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   // 개별 댓글 항목 위젯
-  Widget _buildCommentItem(Map<String, dynamic> comment) {
+  Widget _buildCommentItem(Map<String, dynamic> comment, String postId, String commentId) {
     final author = comment['author'] as Map<String, dynamic>? ?? {};
+    final user = FirebaseAuth.instance.currentUser; // 현재 로그인된 사용자
     final nickname = author['nickname'] ?? '익명';
     final profileImage = author['profileImage'] ?? '';
+    final isAuthor = user?.uid == author['uid']; // 작성자 확인 로직
 
     String timeAgo = '';
     if (comment['createdAt'] != null && comment['createdAt'] is Timestamp) {
@@ -917,6 +982,17 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       timeAgo,
                       style: TextStyle(color: Colors.grey[500], fontSize: 11),
                     ),
+                    const Spacer(), // 닉네임과 메뉴 버튼 사이에 공간
+
+                    // 삭제 버튼 표시 : 작성자 본인일 경우에만 표시
+                    if (isAuthor)
+                      InkWell(
+                        onTap: () {
+                          // 삭제 다이얼로그 호출
+                          _showDeleteConfirmationDialog(postId, commentId);
+                        },
+                        child: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 4),
