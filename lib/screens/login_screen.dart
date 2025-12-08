@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:livingalonecare_app/screens/home_screen.dart';
 import 'package:livingalonecare_app/screens/signup_screen.dart'; // 회원가입 화면 경로 (필요시 주석 해제)
 import 'package:livingalonecare_app/screens/home_screen.dart'; // 로그인 성공 후 이동할 화면 경로 (필요시 주석 해제)
+import 'package:livingalonecare_app/main.dart';
+import 'package:livingalonecare_app/screens/splash_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -98,7 +100,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.black,
                   size: 28,
                 ),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  // 현재 화면 뒤에 돌아갈 페이지가 있는지 확인
+                  if (Navigator.canPop(context)) {
+                    // 돌아갈 곳이 있으면 정상적으로 뒤로가기
+                    Navigator.pop(context);
+                  } else {
+                    // 돌아갈 곳이 없으면(로그아웃 직후 등) 시작 화면(스플래시)으로 이동
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SplashScreen(),
+                      ),
+                    );
+                  }
+                },
               ),
             ),
             const SizedBox(height: 16),

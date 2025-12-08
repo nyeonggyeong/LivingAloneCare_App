@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:livingalonecare_app/main.dart';
+import 'package:livingalonecare_app/screens/splash_screen.dart'; // 💡 SplashScreen이 정의된 파일
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -132,7 +134,16 @@ class _SignupScreenState extends State<SignupScreen> {
                   color: Colors.black,
                   size: 28,
                 ),
-                onPressed: () => Navigator.pop(context),
+                // 👇 여기를 수정했습니다
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SplashScreen(),
+                    ),
+                    (route) => false, // 이전의 모든 화면 스택을 제거 (뒤로가기 방지)
+                  );
+                },
               ),
             ),
             const SizedBox(height: 10),
