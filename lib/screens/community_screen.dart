@@ -319,18 +319,22 @@ class _CommunityScreenState extends State<CommunityScreen> {
           itemCount: docs.length,
           separatorBuilder: (context, index) => const SizedBox(height: 20),
           itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
-            return _buildPostCard(data);
+            final doc = docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            // doc.id를 두 번째 인자로 전달
+            return _buildPostCard(data, doc.id);
           },
         );
       },
     );
   }
 
-  Widget _buildPostCard(Map<String, dynamic> post) {
+  Widget _buildPostCard(Map<String, dynamic> post, String postId) {
+    final user = FirebaseAuth.instance.currentUser;
     final author = post['author'] as Map<String, dynamic>? ?? {};
     final nickname = author['nickname'] ?? '익명';
     final profileImage = author['profileImage'] ?? '';
+    final isAuthor = user?.uid == author['uid'];
 
     String timeAgo = '';
     if (post['createdAt'] != null && post['createdAt'] is Timestamp) {
