@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:share_plus/share_plus.dart';
 
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
@@ -465,7 +466,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
                         icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
                       )
                     else 
-                      const Icon(Icons.share_outlined, color: Colors.grey, size: 20),
+                      IconButton(
+                        icon: const Icon(Icons.share_outlined, color: Colors.grey, size: 20),
+                        onPressed: () {
+                          // 게시물 내용의 일부를 content 변수로 전달
+                          // post['content']가 null일 경우 빈 문자열을 전달하도록 처리
+                          _sharePost(postId, post['content'] ?? ''); 
+                        },
+                      ),
                   ],
                 ),     
                 // 게시물 상단 끝
@@ -744,6 +752,26 @@ class _CommunityScreenState extends State<CommunityScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('댓글 작성 실패: $e')));
+      }
+    }
+  }
+
+  Future<void> _sharePost(String postId, String content) async {
+    // 실제 앱에서는 'https://yourdomain.com/posts/$postId'와 같은
+    // 실제 웹 링크를 포함하여 공유하는 것이 일반적
+    final String shareText = 
+        '${content}\n\n[커뮤니티에서 이 게시물 보기]\nhttps://yourapplink.com/post/$postId';
+
+    try {
+      await Share.share(
+        shareText,
+        subject: '자취 꿀팁 공유! 놓치지 마세요.', // 이메일 제목 등으로 사용됨.
+      );
+    } catch (e) {
+      if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text('공유 실패: $e')),
+          );
       }
     }
   }
