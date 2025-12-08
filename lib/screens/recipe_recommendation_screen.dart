@@ -123,7 +123,7 @@ class _RecipeRecommendationScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "레시피 추천",
+            "냉파 레시피! 추천",
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -149,7 +149,7 @@ class _RecipeRecommendationScreenState
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: "레시피 검색...",
+                hintText: "냉파 레시피 검색...",
                 hintStyle: TextStyle(color: Colors.white70),
                 prefixIcon: Icon(Icons.search, color: Colors.white70),
                 border: InputBorder.none,
@@ -179,7 +179,7 @@ class _RecipeRecommendationScreenState
                       ),
                       SizedBox(height: 4),
                       Text(
-                        "200개 이상의 레시피",
+                        "200개 이상의 냉파 레시피",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 20,

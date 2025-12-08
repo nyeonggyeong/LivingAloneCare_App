@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:livingalonecare_app/screens/profile_edit_screen.dart'; // 💡 프로필 수정 화면 import
 import 'package:livingalonecare_app/screens/saved_recipes_screen.dart'; // 저장한 레시피 화면
+import 'package:livingalonecare_app/screens/notification_setting_screen.dart'; // 알림 설정
+import 'package:livingalonecare_app/screens/settings_screen.dart'; // 설정
+import 'package:livingalonecare_app/screens/help_screen.dart'; // 도움말
 
 class MyPageScreen extends StatelessWidget {
   const MyPageScreen({super.key});
@@ -269,7 +272,7 @@ class MyPageScreen extends StatelessWidget {
                               "저장한\n레시피",
                               "$savedRecipeCount",
                               Icons.bookmark_border,
-                              // 👇 onTap 부분 추가됨
+
                               onTap: () {
                                 Navigator.push(
                                   context,
@@ -315,13 +318,46 @@ class MyPageScreen extends StatelessWidget {
                       const SizedBox(height: 20),
 
                       // 메뉴 옵션들
-                      _buildMenuOption(context, Icons.settings, "설정"),
+                      _buildMenuOption(
+                        context,
+                        Icons.settings,
+                        "설정",
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsScreen(),
+                            ),
+                          );
+                        },
+                      ),
                       _buildMenuOption(
                         context,
                         Icons.notifications_none,
                         "알림 설정",
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const NotificationSettingScreen(),
+                            ),
+                          );
+                        },
                       ),
-                      _buildMenuOption(context, Icons.help_outline, "도움말"),
+                      _buildMenuOption(
+                        context,
+                        Icons.help_outline,
+                        "도움말",
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const HelpScreen(),
+                            ),
+                          );
+                        },
+                      ),
                       _buildMenuOption(
                         context,
                         Icons.logout,
