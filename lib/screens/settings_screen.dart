@@ -156,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _buildSectionHeader("계정"),
+                _buildSectionHeader("계정 관리"),
                 _buildSettingItem(
                   icon: Icons.lock_reset,
                   title: "비밀번호 재설정",
