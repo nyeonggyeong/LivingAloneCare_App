@@ -23,6 +23,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
   final List<String> _tags = [];
   bool _isUploading = false;
 
+  // 공동구매 관련 변수 추가
+  final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _quantityController = TextEditingController();
+  DateTime? _selectedDeadline;
+
   XFile? _selectedImage;
   final ImagePicker _picker = ImagePicker();
 
@@ -58,6 +63,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   Widget _buildWriteView() {
+    // 현재 탭이 공동구매(1)에서 시작되었는지 확인
+    final bool isGroupBuy = _selectedTabIndex == 1;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -67,30 +75,33 @@ class _CommunityScreenState extends State<CommunityScreen> {
           icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () {
             setState(() {
-              _selectedTabIndex = 0;
-              _clearWriteData();
+              _selectedTabIndex = isGroupBuy ? 1 : 0; // 닫을 때 원래 탭으로 돌아가기
+              isGroupBuy ? _clearGroupBuyData() : _clearWriteData(); // 데이터 초기화 분기
             });
           },
         ),
-        title: const Text(
-          '글 쓰기',
+        title: Text(
+          isGroupBuy ? '공동구매 등록' : '글 쓰기',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         actions: [
           TextButton(
-            onPressed: _isUploading ? null : _savePost,
+            // 저장 함수 분기: 공동구매면 _saveGroupBuyPost, 아니면 _savePost 호출
+            onPressed: _isUploading 
+              ? null 
+              : isGroupBuy ? _saveGroupBuyPost : _savePost, 
             child: _isUploading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text(
-                    '완료',
-                    style: TextStyle(
-                      color: Color(0xFFFFA36A),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text(
+                  '완료',
+                  style: TextStyle(
+                    color: Color(0xFFFFA36A),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                     ),
                   ),
           ),
@@ -101,52 +112,63 @@ class _CommunityScreenState extends State<CommunityScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 공동구매 모드일 경우, 추가 필드 표시
+            if (isGroupBuy) ...[
+              _buildGroupBuyFields(),
+              const Divider(),
+            ],
+
             TextField(
               controller: _contentController,
-              maxLines: 8,
-              decoration: const InputDecoration(
-                hintText: '자취 꿀팁이나 요리 노하우를 공유해보세요!',
+              maxLines: isGroupBuy ? 4 : 8, // 공동구매는 내용이 짧을 수 있게 maxLines 조절
+              decoration: InputDecoration(
+                hintText: isGroupBuy ? '상품 제목과 상세 설명을 입력하세요.' : '자취 꿀팁이나 요리 노하우를 공유해보세요!',
                 border: InputBorder.none,
               ),
             ),
             const Divider(),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _tagController,
-                    decoration: const InputDecoration(
-                      hintText: '태그 입력 (예: #자취)',
-                      border: InputBorder.none,
-                      prefixIcon: Icon(Icons.tag, size: 20),
-                    ),
-                    onSubmitted: (_) => _addTag(),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle, color: Color(0xFF99D279)),
-                  onPressed: _addTag,
-                ),
-              ],
-            ),
-            if (_tags.isNotEmpty)
-              Wrap(
-                spacing: 8,
-                children: _tags
-                    .map(
-                      (tag) => Chip(
-                        label: Text(tag),
-                        backgroundColor: const Color(0xFFF0F9EB),
-                        labelStyle: const TextStyle(
-                          color: Color(0xFF99D279),
-                          fontWeight: FontWeight.bold,
-                        ),
-                        onDeleted: () => setState(() => _tags.remove(tag)),
+
+            //  태그 입력 필드 (공동구매에서는 보통 사용하지 않으므로 제거하거나 조건부 표시 가능)
+            if (!isGroupBuy) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _tagController,
+                      decoration: const InputDecoration(
+                        hintText: '태그 입력 (예: #자취)',
+                        border: InputBorder.none,
+                        prefixIcon: Icon(Icons.tag, size: 20),
                       ),
-                    )
-                    .toList(),
+                      onSubmitted: (_) => _addTag(),
+                    ),
+                 ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle, color: Color(0xFF99D279)),
+                    onPressed: _addTag,
+                  ),
+                ],
               ),
-            const SizedBox(height: 20),
+              if (_tags.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  children: _tags
+                      .map(
+                        (tag) => Chip(
+                          label: Text(tag),
+                          backgroundColor: const Color(0xFFF0F9EB),
+                          labelStyle: const TextStyle(
+                            color: Color(0xFF99D279),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                          onDeleted: () => setState(() => _tags.remove(tag)),
+                        ),
+                      )
+                      .toList(),
+                ),
+              const SizedBox(height: 20),
+            ],
 
             GestureDetector(
               onTap: _pickImage,
@@ -878,6 +900,163 @@ class _CommunityScreenState extends State<CommunityScreen> {
           ],
         );
       },
+    );
+    
+  }
+
+  Future<void> _saveGroupBuyPost() async {
+    if (_contentController.text.trim().isEmpty || 
+        _priceController.text.isEmpty || 
+        _quantityController.text.isEmpty ||
+        _selectedDeadline == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('모든 필수 항목을 입력해주세요.')));
+      return;
+    }
+  
+    // 가격과 수량 파싱
+    final int? price = int.tryParse(_priceController.text);
+    final int? quantity = int.tryParse(_quantityController.text);
+
+    if (price == null || quantity == null || price <= 0 || quantity <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('가격과 목표 수량을 올바르게 입력해주세요.')));
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) { /* ... (로그인 필요 스낵바) ... */ return; }
+
+    setState(() => _isUploading = true);
+
+    try {
+      // =유저 정보 가져오기 로직 (nickname, profileImage)
+      String nickname = '익명';
+      String profileImage = user.photoURL ?? '';
+
+      try {
+        final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+        if (userDoc.exists) {
+          final data = userDoc.data() as Map<String, dynamic>;
+          nickname = data['nickname'] ?? data['name'] ?? '익명';
+          if (data['profileImage'] != null && data['profileImage'].toString().isNotEmpty) {
+            profileImage = data['profileImage'];
+          }
+        }
+      } catch (e) {
+        print('유저 정보 가져오기 실패: $e');
+      }
+
+      // 이미지 업로드 로직 (imageUrls)
+      List<String> imageUrls = [];
+      if (_selectedImage != null) {
+        final storageRef = FirebaseStorage.instance.ref().child(
+          'group_buys/${DateTime.now().millisecondsSinceEpoch}_${user.uid}.jpg', // 💡 폴더 이름을 'group_buys'로 변경
+        );
+
+        await storageRef.putFile(File(_selectedImage!.path));
+        final downloadUrl = await storageRef.getDownloadURL();
+        imageUrls.add(downloadUrl);
+      }
+
+      // group_buys 컬렉션에 저장
+      await FirebaseFirestore.instance.collection('group_buys').add({
+        'title': _contentController.text.split('\n').first, // 첫 줄을 제목으로 사용
+        'content': _contentController.text,
+        'price': price,
+        'targetQuantity': quantity,
+        'currentQuantity': 0, // 시작 시 현재 수량은 0
+        'deadline': _selectedDeadline,
+        'imageUrls': imageUrls,
+        'author': {
+          'uid': user.uid,
+          'nickname': nickname,
+          'profileImage': profileImage,
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        _selectedTabIndex = 1; // 저장 후 공동구매 탭으로 이동
+        _clearGroupBuyData(); // 데이터 초기화
+      });
+    
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('공동구매 등록 실패: $e')));
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  //  공동구매 데이터 초기화 함수
+  void _clearGroupBuyData() {
+    _contentController.clear();
+    _tags.clear();
+    _selectedImage = null;
+    _priceController.clear();
+    _quantityController.clear();
+    _selectedDeadline = null;
+  }
+
+  // 마감 기한 선택 함수
+  Future<void> _selectDeadline() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDeadline ?? DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+     lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null && picked != _selectedDeadline) {
+      setState(() {
+       _selectedDeadline = picked;
+      });
+    }
+  }
+
+  // 공동구매 전용 입력 필드 위젯
+  Widget _buildGroupBuyFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('가격', style: TextStyle(fontWeight: FontWeight.bold)),
+        TextField(
+          controller: _priceController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: '판매 가격을 입력하세요 (원)',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.all(10),
+          ),
+        ),
+        const SizedBox(height: 15),
+        const Text('목표 수량', style: TextStyle(fontWeight: FontWeight.bold)),
+        TextField(
+          controller: _quantityController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: '공동구매 목표 수량을 입력하세요 (개)',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.all(10),
+          ),
+        ),
+        const SizedBox(height: 15),
+        const Text('마감 기한', style: TextStyle(fontWeight: FontWeight.bold)),
+        ListTile(
+          title: Text(
+            _selectedDeadline == null 
+                ? '마감 기한을 선택해주세요' 
+                : DateFormat('yyyy. MM. dd').format(_selectedDeadline!),
+            style: TextStyle(color: _selectedDeadline == null ? Colors.grey : Colors.black),
+          ),
+          trailing: const Icon(Icons.calendar_today),
+          onTap: _selectDeadline,
+        ),
+      ],
     );
   }
 
