@@ -1,10 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:livingalonecare_app/screens/login_screen.dart'; // 로그인 화면 경로 확인 필요
+import 'package:livingalonecare_app/screens/login_screen.dart';
+import 'package:livingalonecare_app/screens/profile_edit_screen.dart';
 
 class MyPageScreen extends StatelessWidget {
   const MyPageScreen({super.key});
+
+  // 💡 1. 등급 안내 팝업 함수 (새로 추가됨)
+  void _showLevelGuide(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
+      ),
+      builder: (BuildContext context) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.verified,
+                    color: Color(0xFF99D279),
+                    size: 28,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    "등급 안내",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildLevelItem("초보 요리사", "레시피 저장 0~9개", Colors.grey),
+              _buildLevelItem("중수 요리사", "레시피 저장 10개 이상", Colors.green),
+              _buildLevelItem("고수 요리사", "레시피 저장 30개 이상", Colors.orange),
+              _buildLevelItem("요리 마스터", "레시피 저장 50개 이상", Colors.redAccent),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // 등급 안내 아이템 위젯
+  Widget _buildLevelItem(String title, String condition, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const Spacer(),
+          Text(
+            condition,
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +106,6 @@ class MyPageScreen extends StatelessWidget {
               );
             }
 
-            // 데이터가 없을 때
             if (!snapshot.hasData || !snapshot.data!.exists) {
               return SizedBox(
                 height: MediaQuery.of(context).size.height,
@@ -45,7 +113,6 @@ class MyPageScreen extends StatelessWidget {
               );
             }
 
-            // DB 데이터 가져오기
             final data = snapshot.data!.data() as Map<String, dynamic>;
 
             final String nickname = data['nickname'] ?? '이름 없음';
@@ -68,7 +135,8 @@ class MyPageScreen extends StatelessWidget {
 
             return Column(
               children: [
-                _buildHeader(nickname, email, level, profileImage),
+                // 💡 context를 인자로 전달하도록 수정
+                _buildHeader(context, nickname, email, level, profileImage),
 
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -101,13 +169,9 @@ class MyPageScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 20),
-
                       _buildGoalCard(goalTitle, goalDesc, progress),
-
                       const SizedBox(height: 20),
-
                       _buildMenuOption(context, Icons.settings, "설정"),
                       _buildMenuOption(
                         context,
@@ -132,7 +196,6 @@ class MyPageScreen extends StatelessWidget {
                           }
                         },
                       ),
-
                       const SizedBox(height: 40),
                       const Text(
                         "Recipe Finder v1.0.0",
@@ -157,7 +220,9 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
+  // 💡 Header 함수 수정: BuildContext context 추가
   Widget _buildHeader(
+    BuildContext context, // 👈 context 추가됨
     String nickname,
     String email,
     String level,
@@ -171,7 +236,6 @@ class MyPageScreen extends StatelessWidget {
           width: double.infinity,
           color: Colors.transparent,
         ),
-
         Positioned(
           top: 0,
           left: 0,
@@ -200,106 +264,135 @@ class MyPageScreen extends StatelessWidget {
             ),
           ),
         ),
-
         Positioned(
           top: 110,
           left: 20,
           right: 20,
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ProfileEditScreen(),
                 ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: Colors.grey[200],
-                      backgroundImage: imageUrl != null
-                          ? NetworkImage(imageUrl)
-                          : null,
-                      child: imageUrl == null
-                          ? const Icon(
-                              Icons.person,
-                              size: 30,
-                              color: Colors.grey,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            nickname,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            email,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Colors.grey),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F8E9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
                     children: [
-                      const Icon(
-                        Icons.verified,
-                        color: Color(0xFF99D279),
-                        size: 20,
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: Colors.grey[200],
+                        backgroundImage: imageUrl != null
+                            ? NetworkImage(imageUrl)
+                            : null,
+                        child: imageUrl == null
+                            ? const Icon(
+                                Icons.person,
+                                size: 30,
+                                color: Colors.grey,
+                              )
+                            : null,
                       ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "현재 등급",
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          Text(
-                            level,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              nickname,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                        ],
+                            Text(
+                              email,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
+                      const Icon(Icons.chevron_right, color: Colors.grey),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+
+                  // 💡 2. 등급 부분 클릭 가능하게 수정 (GestureDetector 추가)
+                  GestureDetector(
+                    onTap: () {
+                      _showLevelGuide(context); // 팝업 띄우기 함수 호출
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F8E9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.verified,
+                            color: Color(0xFF99D279),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: const [
+                                  Text(
+                                    "현재 등급",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Icon(
+                                    Icons.info_outline,
+                                    size: 12,
+                                    color: Colors.grey,
+                                  ), // 안내 아이콘 추가
+                                ],
+                              ),
+                              Text(
+                                level,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
