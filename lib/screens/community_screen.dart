@@ -319,7 +319,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
           itemCount: docs.length,
           separatorBuilder: (context, index) => const SizedBox(height: 20),
           itemBuilder: (context, index) {
-            final doc = docs[index];
+            final doc = docs[index]; // DocumentSnapshot 객체 가져오기
             final data = doc.data() as Map<String, dynamic>;
             // doc.id를 두 번째 인자로 전달
             return _buildPostCard(data, doc.id);
@@ -329,12 +329,13 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
+  // 함수 시그니처 수정: postId 인자 추가
   Widget _buildPostCard(Map<String, dynamic> post, String postId) {
     final user = FirebaseAuth.instance.currentUser;
     final author = post['author'] as Map<String, dynamic>? ?? {};
     final nickname = author['nickname'] ?? '익명';
     final profileImage = author['profileImage'] ?? '';
-    final isAuthor = user?.uid == author['uid'];
+    final isAuthor = user?.uid == author['uid']; // 작성자 확인 로직
 
     String timeAgo = '';
     if (post['createdAt'] != null && post['createdAt'] is Timestamp) {
@@ -361,8 +362,59 @@ class _CommunityScreenState extends State<CommunityScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildUserInfo(nickname, profileImage, timeAgo),
-          const SizedBox(height: 16),
+                // 게시물 상단: 사용자 정보 및 삭제/공유 메뉴
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: profileImage.isNotEmpty
+                          ? NetworkImage(profileImage)
+                          : null,
+                      child: profileImage.isEmpty
+                          ? const Icon(Icons.person, color: Colors.grey)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          nickname,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                        Text(
+                          timeAgo,
+                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+
+                    // 삭제 메뉴 또는 공유 아이콘 표시
+                    if (isAuthor) 
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'delete') {
+                            _confirmAndDeletePost(postId, post['imageUrls'] as List<dynamic>?); // 삭제 함수 호출
+                          }
+                        },
+                        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                          const PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Text('삭제하기', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                        icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+                      )
+                    else 
+                      const Icon(Icons.share_outlined, color: Colors.grey, size: 20),
+                  ],
+                ),     
+                // 게시물 상단 끝
+          
+          // 게시물 내용
+          const SizedBox(height: 16), // 사용자 정보와 내용 사이 간격 추가
           Text(
             post['content'] ?? '',
             style: const TextStyle(fontSize: 15, height: 1.5),
@@ -370,6 +422,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 12),
+
+          // 태그
           if (tags.isNotEmpty)
             Wrap(
               spacing: 8,
@@ -397,6 +451,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   )
                   .toList(),
             ),
+
+          // 이미지
           if (firstImage != null) ...[
             const SizedBox(height: 16),
             ClipRRect(
@@ -416,6 +472,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
             ),
           ],
           const SizedBox(height: 16),
+
+          // 좋아요 / 댓글 카운트
           Row(
             children: [
               Icon(Icons.favorite_border, color: Colors.grey[600], size: 22),
@@ -442,39 +500,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  Widget _buildUserInfo(String nickname, String profileImage, String timeAgo) {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: Colors.grey[200],
-          backgroundImage: profileImage.isNotEmpty
-              ? NetworkImage(profileImage)
-              : null,
-          child: profileImage.isEmpty
-              ? const Icon(Icons.person, color: Colors.grey)
-              : null,
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              nickname,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-            ),
-            Text(
-              timeAgo,
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-            ),
-          ],
-        ),
-        const Spacer(),
-        const Icon(Icons.share_outlined, color: Colors.grey, size: 20),
-      ],
-    );
-  }
-
   String _formatTimestamp(Timestamp timestamp) {
     final date = timestamp.toDate();
     final diff = DateTime.now().difference(date);
@@ -483,6 +508,54 @@ class _CommunityScreenState extends State<CommunityScreen> {
     if (diff.inHours < 24) return '${diff.inHours}시간 전';
     if (diff.inDays < 7) return '${diff.inDays}일 전';
     return DateFormat('yyyy.MM.dd').format(date);
+  }
+
+  Future<void> _confirmAndDeletePost(String postId, List<dynamic>? imageUrls) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('게시글 삭제'),
+          content: const Text('정말로 이 게시글을 삭제하시겠습니까?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('삭제', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        // 1. Firestore 문서 삭제
+        await FirebaseFirestore.instance.collection('posts').doc(postId).delete();
+        
+        // 2. Storage 이미지 삭제 (Storage URL이 있는 경우)
+        if (imageUrls != null && imageUrls.isNotEmpty) {
+          for (var url in imageUrls) {
+            await FirebaseStorage.instance.refFromURL(url.toString()).delete(); 
+          }
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('게시글이 삭제되었습니다.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('삭제 실패: $e')),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildHeader() {
