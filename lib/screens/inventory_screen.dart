@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:livingalonecare_app/screens/home_screen.dart'; // 이미지 헬퍼 사용을 위해 import
+import 'package:livingalonecare_app/screens/home_screen.dart'; // IngredientImageHelper 사용
 
 enum InventorySortType { expiryDate, registeredAt }
 
@@ -16,8 +16,9 @@ class InventoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null)
+    if (user == null) {
       return const Scaffold(body: Center(child: Text("로그인 필요")));
+    }
 
     String title = sortType == InventorySortType.expiryDate
         ? "유통기한 임박 재료"
@@ -25,8 +26,8 @@ class InventoryScreen extends StatelessWidget {
     String orderByField = sortType == InventorySortType.expiryDate
         ? 'expiryDate'
         : 'registeredAt';
-    bool descending =
-        sortType == InventorySortType.registeredAt; // 최근 추가순은 내림차순
+
+    bool descending = sortType == InventorySortType.registeredAt;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -50,8 +51,9 @@ class InventoryScreen extends StatelessWidget {
             .orderBy(orderByField, descending: descending)
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError)
+          if (snapshot.hasError) {
             return const Center(child: Text('오류가 발생했습니다.'));
+          }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -72,8 +74,10 @@ class InventoryScreen extends StatelessWidget {
             itemCount: docs.length,
             separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              return _buildInventoryItem(data);
+              final doc = docs[index]; // 문서 객체 가져오기 (ID 필요)
+              final data = doc.data() as Map<String, dynamic>;
+
+              return _buildInventoryItem(context, doc.id, data, user.uid);
             },
           );
         },
@@ -81,11 +85,16 @@ class InventoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInventoryItem(Map<String, dynamic> data) {
+  Widget _buildInventoryItem(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> data,
+    String userId,
+  ) {
     String name = data['name'] ?? '알 수 없음';
     String category = data['category'] ?? '기타';
 
-    // D-Day 계산
+    // D-Day 계산 로직
     String dDayText = '';
     Color tagColor = Colors.grey;
     Color textColor = Colors.black54;
@@ -115,72 +124,112 @@ class InventoryScreen extends StatelessWidget {
       }
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return Dismissible(
+      key: Key(docId),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        padding: const EdgeInsets.only(right: 20),
+        alignment: Alignment.centerRight,
+        decoration: BoxDecoration(
+          color: Colors.red[400],
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white, size: 30),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+      onDismissed: (direction) async {
+        final docRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('inventory')
+            .doc(docId);
+
+        await docRef.delete();
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$name 삭제됨'),
+              action: SnackBarAction(
+                label: '실행 취소',
+                onPressed: () async {
+                  await docRef.set(data);
+                },
+              ),
+              duration: const Duration(seconds: 2),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              // HomeScreen에 있는 헬퍼 클래스 재사용
-              child: IngredientImageHelper.getImage(name, category),
+          );
+        }
+      },
+      // 실제 아이템 UI
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 16,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: IngredientImageHelper.getImage(name, category),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${data['storageLocation'] ?? '냉장'} · $category · ${data['quantity']}${data['unit']}",
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            if (dDayText.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: tagColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  dDayText,
+                  style: TextStyle(
+                    color: textColor,
                     fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  "${data['storageLocation'] ?? '냉장'} · $category · ${data['quantity']}${data['unit']}",
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-          if (dDayText.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: tagColor,
-                borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(
-                dDayText,
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
