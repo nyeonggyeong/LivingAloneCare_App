@@ -18,6 +18,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   final TextEditingController _contentController = TextEditingController();
   final TextEditingController _tagController = TextEditingController();
+  final TextEditingController _commentController = TextEditingController();
   final List<String> _tags = [];
   bool _isUploading = false;
 
@@ -204,6 +205,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       ),
     );
   }
+
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
@@ -212,6 +214,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       });
     }
   }
+
   Future<void> _savePost() async {
     if (_contentController.text.trim().isEmpty) return;
 
@@ -301,6 +304,57 @@ class _CommunityScreenState extends State<CommunityScreen> {
     _tagController.clear();
     _tags.clear();
     _selectedImage = null; // 이미지 초기화
+  }
+
+  void _showCommentSheet(String postId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        // 키보드에 의해 위젯이 가려지지 않도록 Padding으로 감싸줌.
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 댓글 목록을 표시하는 부분 (3단계에서 구현)
+                Expanded(
+                  child: _buildCommentList(postId),
+                ),
+
+                // 댓글 입력창
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _commentController,
+                        decoration: const InputDecoration(
+                          hintText: '댓글을 입력하세요...',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Color(0xFFFFA36A)),
+                      onPressed: () => _addComment(postId),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ).whenComplete(() {
+      // BottomSheet가 닫힐 때 컨트롤러를 초기화
+      _commentController.clear();
+    });  
   }
 
   Widget _buildPostList() {
@@ -515,10 +569,19 @@ class _CommunityScreenState extends State<CommunityScreen> {
               ),
               const SizedBox(width: 20),
     
-              Icon(
-                Icons.chat_bubble_outline,
-                color: Colors.grey[600],
-                size: 20,
+              // 댓글 버튼으로 변경
+              IconButton(
+                padding: EdgeInsets.zero, 
+                constraints: const BoxConstraints(),
+                icon: Icon(
+                  Icons.chat_bubble_outline,
+                  color: Colors.grey[600],
+                  size: 20,
+                ),
+                onPressed: () {
+                  // 댓글 버튼 클릭 시 BottomSheet 표시
+                  _showCommentSheet(postId);
+                },
               ),
               const SizedBox(width: 6),
 
@@ -621,6 +684,68 @@ class _CommunityScreenState extends State<CommunityScreen> {
     }
   }
 
+  Future<void> _addComment(String postId) async {
+    final content = _commentController.text.trim();
+    if (content.isEmpty) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+      }
+      return;
+    }
+
+    String nickname = '익명';
+    String profileImage = user.photoURL ?? '';
+
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        nickname = data['nickname'] ?? data['name'] ?? '익명';
+        if (data['profileImage'] != null && data['profileImage'].toString().isNotEmpty) {
+          profileImage = data['profileImage'];
+        }
+      }
+    } catch (e) {
+      print('유저 정보 가져오기 실패: $e');
+    }
+
+    try {
+      // 댓글 문서 추가 (Sub-collection)
+      await FirebaseFirestore.instance
+         .collection('posts')
+          .doc(postId)
+          .collection('comments')
+          .add({
+            'author': {
+              'uid': user.uid,
+              'nickname': nickname,
+              'profileImage': profileImage,
+            },
+            'content': content,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      // 상위 게시글의 commentCount 필드 1 증가
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(postId)
+          .update({'commentCount': FieldValue.increment(1)});
+        
+      if (mounted) {
+        _commentController.clear();
+        // 댓글 목록이 자동으로 업데이트되므로, UI 갱신은 StreamBuilder에 맡김.
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('댓글 작성 실패: $e')));
+      }
+    }
+  }
+
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 60, 24, 20),
@@ -693,6 +818,83 @@ class _CommunityScreenState extends State<CommunityScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCommentList(String postId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('posts')
+          .doc(postId)
+          .collection('comments')
+          .orderBy('createdAt', descending: false) // 최신 댓글이 아래로 오도록 설정
+          .snapshots(),
+      builder: (context, snapshot) {
+       if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+        final docs = snapshot.data!.docs;
+      
+        if (docs.isEmpty) {
+          return const Center(child: Text("첫 댓글을 달아주세요!", style: TextStyle(color: Colors.grey)));
+        }
+
+        return ListView.builder(
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final comment = docs[index].data() as Map<String, dynamic>;
+            return _buildCommentItem(comment);
+          },
+        );
+      },
+    );
+  }
+
+  // 개별 댓글 항목 위젯
+  Widget _buildCommentItem(Map<String, dynamic> comment) {
+    final author = comment['author'] as Map<String, dynamic>? ?? {};
+    final nickname = author['nickname'] ?? '익명';
+    final profileImage = author['profileImage'] ?? '';
+
+    String timeAgo = '';
+    if (comment['createdAt'] != null && comment['createdAt'] is Timestamp) {
+      timeAgo = _formatTimestamp(comment['createdAt'] as Timestamp);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundImage: profileImage.isNotEmpty ? NetworkImage(profileImage) : null,
+            child: profileImage.isEmpty ? const Icon(Icons.person, size: 16) : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      nickname,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      timeAgo,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(comment['content'] ?? '', style: const TextStyle(fontSize: 14)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
