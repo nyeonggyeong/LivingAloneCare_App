@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // 💡 Firestore 추가
 import 'package:livingalonecare_app/screens/recipe_detail_screen.dart';
 
 class RecipeRecommendationScreen extends StatefulWidget {
@@ -24,12 +25,11 @@ class _RecipeRecommendationScreenState
     _fetchRecommendations();
   }
 
-  // Cloud Functions 호출
+  // Cloud Functions 호출 (기존과 동일)
   Future<void> _fetchRecommendations() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      print("❌ 유저가 로그인 상태가 아닙니다.");
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -38,8 +38,6 @@ class _RecipeRecommendationScreenState
       }
       return;
     }
-
-    print("✅ 로그인 확인됨: ${user.uid}");
 
     try {
       final functions = FirebaseFunctions.instanceFor(
@@ -51,10 +49,7 @@ class _RecipeRecommendationScreenState
       );
 
       final result = await callable.call();
-
       final data = Map<String, dynamic>.from(result.data as Map);
-
-      print("✅ 서버 응답: ${data['message']}");
 
       if (mounted) {
         setState(() {
@@ -67,7 +62,6 @@ class _RecipeRecommendationScreenState
       if (mounted) {
         setState(() {
           _isLoading = false;
-          // 필요 시 에러 메시지 표시
         });
       }
     }
@@ -100,7 +94,8 @@ class _RecipeRecommendationScreenState
                       if (index == _recommendations.length) {
                         return _buildMoreButton();
                       }
-                      return _buildRecipeCard(_recommendations[index]);
+                      // 💡 여기서 별도 위젯(RecipeListCard)을 호출합니다.
+                      return RecipeListCard(recipe: _recommendations[index]);
                     },
                   ),
           ),
@@ -109,6 +104,7 @@ class _RecipeRecommendationScreenState
     );
   }
 
+  // ... (Header, Tabs, EmptyView, MoreButton 등 기존 디자인 코드는 그대로 둡니다)
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
@@ -277,7 +273,169 @@ class _RecipeRecommendationScreenState
     );
   }
 
-  Widget _buildRecipeCard(dynamic recipe) {
+  Widget _buildMoreButton() {
+    return Container(
+      margin: const EdgeInsets.only(top: 10, bottom: 30),
+      width: double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: const Center(
+        child: Text(
+          "더 많은 레시피 보기",
+          style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.kitchen, size: 60, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text(
+            "냉장고가 비어있거나\n추천할 레시피를 찾지 못했어요 😭",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[500], fontSize: 16),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+              });
+              _fetchRecommendations();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFA36A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: const Text("다시 시도", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 💡 [핵심] 리스트 아이템을 별도 위젯으로 분리 (각각 저장 상태 관리)
+class RecipeListCard extends StatefulWidget {
+  final dynamic recipe;
+
+  const RecipeListCard({super.key, required this.recipe});
+
+  @override
+  State<RecipeListCard> createState() => _RecipeListCardState();
+}
+
+class _RecipeListCardState extends State<RecipeListCard> {
+  bool _isSaved = false;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfSaved();
+  }
+
+  // 1. 저장 여부 확인
+  Future<void> _checkIfSaved() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final String docId = widget.recipe['id'] ?? widget.recipe['name'];
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('saved_recipes')
+          .doc(docId)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _isSaved = doc.exists;
+        });
+      }
+    } catch (e) {
+      print("리스트 카드 확인 오류: $e");
+    }
+  }
+
+  // 2. 저장 토글 (찜하기/해제)
+  Future<void> _toggleSave() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+      return;
+    }
+
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+
+    final String docId = widget.recipe['id'] ?? widget.recipe['name'];
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    final recipeRef = userRef.collection('saved_recipes').doc(docId);
+
+    try {
+      if (_isSaved) {
+        // 삭제
+        await recipeRef.delete();
+        await userRef.update({'savedRecipeCount': FieldValue.increment(-1)});
+        if (mounted) {
+          setState(() => _isSaved = false);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('저장이 취소되었습니다.')));
+        }
+      } else {
+        // 저장
+        final saveData = {
+          'id': docId,
+          'name': widget.recipe['name'],
+          'imageUrl': widget.recipe['imageUrl'],
+          'cookingTime': widget.recipe['cookingTime'],
+          'difficulty': widget.recipe['difficulty'],
+          'savedAt': FieldValue.serverTimestamp(),
+          // 필요하면 steps, ingredients 등 전체 데이터 저장
+          'steps': widget.recipe['steps'],
+          'requiredIngredients': widget.recipe['requiredIngredients'],
+          'tags': widget.recipe['tags'],
+        };
+
+        await recipeRef.set(saveData);
+        await userRef.update({'savedRecipeCount': FieldValue.increment(1)});
+
+        if (mounted) {
+          setState(() => _isSaved = true);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('나만의 레시피북에 저장되었어요! 🧡')));
+        }
+      }
+    } catch (e) {
+      print("저장 오류: $e");
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recipe = widget.recipe;
     final double matchingRate = (recipe['matchingRate'] as num).toDouble();
     final List<dynamic> missing = recipe['missingIngredients'] ?? [];
     final List<dynamic> tags = recipe['tags'] ?? [];
@@ -291,7 +449,10 @@ class _RecipeRecommendationScreenState
               recipeData: Map<String, dynamic>.from(recipe as Map),
             ),
           ),
-        );
+        ).then((_) {
+          // 상세 화면에서 저장 상태가 바뀌었을 수도 있으므로 돌아오면 다시 확인
+          _checkIfSaved();
+        });
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -379,10 +540,16 @@ class _RecipeRecommendationScreenState
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Icon(
-                        Icons.favorite_border,
-                        size: 20,
-                        color: Colors.grey,
+                      // 💡 찜하기 버튼 (IconButton으로 변경)
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(), // 터치 영역 최소화
+                        icon: Icon(
+                          _isSaved ? Icons.favorite : Icons.favorite_border,
+                          size: 24,
+                          color: _isSaved ? Colors.red : Colors.grey,
+                        ),
+                        onPressed: _toggleSave,
                       ),
                     ],
                   ),
@@ -492,58 +659,6 @@ class _RecipeRecommendationScreenState
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
-      ),
-    );
-  }
-
-  Widget _buildMoreButton() {
-    return Container(
-      margin: const EdgeInsets.only(top: 10, bottom: 30),
-      width: double.infinity,
-      height: 50,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: const Center(
-        child: Text(
-          "더 많은 레시피 보기",
-          style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.kitchen, size: 60, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text(
-            "냉장고가 비어있거나\n추천할 레시피를 찾지 못했어요 😭",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[500], fontSize: 16),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _isLoading = true;
-              });
-              _fetchRecommendations();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFA36A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            child: const Text("다시 시도", style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }

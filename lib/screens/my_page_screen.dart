@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
-import 'package:livingalonecare_app/screens/profile_edit_screen.dart';
+import 'package:livingalonecare_app/screens/profile_edit_screen.dart'; // 💡 프로필 수정 화면 import
+import 'package:livingalonecare_app/screens/saved_recipes_screen.dart'; // 저장한 레시피 화면
 
 class MyPageScreen extends StatelessWidget {
   const MyPageScreen({super.key});
 
-  // 💡 1. 등급 안내 팝업 함수 (새로 추가됨)
+  // ==========================================
+  // 1. 등급 안내 팝업 함수
+  // ==========================================
   void _showLevelGuide(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -23,14 +26,10 @@ class MyPageScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                children: [
-                  const Icon(
-                    Icons.verified,
-                    color: Color(0xFF99D279),
-                    size: 28,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
+                children: const [
+                  Icon(Icons.verified, color: Color(0xFF99D279), size: 28),
+                  SizedBox(width: 8),
+                  Text(
                     "등급 안내",
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
@@ -49,7 +48,6 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  // 등급 안내 아이템 위젯
   Widget _buildLevelItem(String title, String condition, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -75,6 +73,127 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
+  // ==========================================
+  // 2. 이용 일수 상세 팝업 함수
+  // ==========================================
+  void _showUsageDetail(
+    BuildContext context,
+    int days,
+    Timestamp? registeredAt,
+  ) {
+    // 가입일 날짜 포맷팅 (YYYY.MM.DD)
+    String regDateStr = "정보 없음";
+    if (registeredAt != null) {
+      DateTime date = registeredAt.toDate();
+      regDateStr =
+          "${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}";
+    }
+
+    // 다음 기념일 계산 로직
+    int nextMilestone = 100;
+    if (days >= 100) nextMilestone = 200;
+    if (days >= 200) nextMilestone = 300;
+    if (days >= 300) nextMilestone = 365;
+    if (days >= 365) nextMilestone = 730;
+
+    int daysLeft = nextMilestone - days;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.white, // 배경색을 흰색으로 지정
+          surfaceTintColor: Colors.white, // 안드로이드(Material 3)의 기본 틴트 색상 제거
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.calendar_month,
+                  size: 50,
+                  color: Color(0xFFFFA36A),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "함께한 지",
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                Text(
+                  "${days}일째",
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFFA36A),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("가입일"),
+                          Text(
+                            regDateStr,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("$nextMilestone일 기념일까지"),
+                          Text(
+                            "$daysLeft일 남음",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF99D279),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFA36A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      "닫기",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // 메인 빌드 함수
+  // ==========================================
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -113,6 +232,7 @@ class MyPageScreen extends StatelessWidget {
               );
             }
 
+            // 데이터 가져오기
             final data = snapshot.data!.data() as Map<String, dynamic>;
 
             final String nickname = data['nickname'] ?? '이름 없음';
@@ -135,7 +255,7 @@ class MyPageScreen extends StatelessWidget {
 
             return Column(
               children: [
-                // 💡 context를 인자로 전달하도록 수정
+                // 헤더 (프로필)
                 _buildHeader(context, nickname, email, level, profileImage),
 
                 Padding(
@@ -149,6 +269,16 @@ class MyPageScreen extends StatelessWidget {
                               "저장한\n레시피",
                               "$savedRecipeCount",
                               Icons.bookmark_border,
+                              // 👇 onTap 부분 추가됨
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const SavedRecipesScreen(),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -165,13 +295,26 @@ class MyPageScreen extends StatelessWidget {
                               "이용 일수",
                               "$usageDays일",
                               Icons.calendar_today,
+                              // 💡 이용 일수 팝업 연결
+                              onTap: () {
+                                _showUsageDetail(
+                                  context,
+                                  usageDays,
+                                  registeredAt,
+                                );
+                              },
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 20),
+
+                      // 목표 카드
                       _buildGoalCard(goalTitle, goalDesc, progress),
+
                       const SizedBox(height: 20),
+
+                      // 메뉴 옵션들
                       _buildMenuOption(context, Icons.settings, "설정"),
                       _buildMenuOption(
                         context,
@@ -213,6 +356,10 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
+  // ==========================================
+  // 위젯 빌더들
+  // ==========================================
+
   String _formatCurrency(int amount) {
     return amount.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -220,9 +367,8 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  // 💡 Header 함수 수정: BuildContext context 추가
   Widget _buildHeader(
-    BuildContext context, // 👈 context 추가됨
+    BuildContext context,
     String nickname,
     String email,
     String level,
@@ -270,6 +416,7 @@ class MyPageScreen extends StatelessWidget {
           right: 20,
           child: GestureDetector(
             onTap: () {
+              // 💡 프로필 수정 화면으로 이동
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -336,10 +483,10 @@ class MyPageScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // 💡 2. 등급 부분 클릭 가능하게 수정 (GestureDetector 추가)
+                  // 💡 등급 안내 팝업 연결
                   GestureDetector(
                     onTap: () {
-                      _showLevelGuide(context); // 팝업 띄우기 함수 호출
+                      _showLevelGuide(context);
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -375,7 +522,7 @@ class MyPageScreen extends StatelessWidget {
                                     Icons.info_outline,
                                     size: 12,
                                     color: Colors.grey,
-                                  ), // 안내 아이콘 추가
+                                  ),
                                 ],
                               ),
                               Text(
@@ -400,41 +547,49 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon) {
-    return Container(
-      height: 130,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: const Color(0xFFFFA36A), size: 24),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.grey,
-              height: 1.2,
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon, {
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 130,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: const Color(0xFFFFA36A), size: 24),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }
