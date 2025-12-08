@@ -50,17 +50,24 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     }
   }
 
-  // 💡 2. 찜하기 토글 함수 (저장 <-> 삭제)
+  String _calculateLevel(int count) {
+    if (count >= 50) return "요리 마스터";
+    if (count >= 30) return "고수 요리사";
+    if (count >= 10) return "중수 요리사";
+    return "초보 요리사";
+  }
+
+  // 💡 수정된 _toggleSave 함수
   Future<void> _toggleSave() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('로그인이 필요한 기능입니다.')));
+      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
       return;
     }
 
-    if (_isProcessing) return; // 중복 실행 방지
+    if (_isProcessing) return;
     setState(() => _isProcessing = true);
 
     final String docId = widget.recipeData['id'] ?? widget.recipeData['name'];
@@ -70,12 +77,22 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final recipeRef = userRef.collection('saved_recipes').doc(docId);
 
     try {
+      // 1. 현재 유저 정보 가져오기 (현재 저장 개수를 알기 위해)
+      final userDoc = await userRef.get();
+      int currentCount = userDoc.data()?['savedRecipeCount'] ?? 0;
+
       if (_isSaved) {
-        // ❌ 이미 저장됨 -> 삭제 로직
+        // ❌ 삭제 로직
         await recipeRef.delete();
 
-        // 유저 정보의 카운트 감소 (-1)
-        await userRef.update({'savedRecipeCount': FieldValue.increment(-1)});
+        // 개수 감소 및 등급 재계산
+        int newCount = currentCount > 0 ? currentCount - 1 : 0;
+        String newLevel = _calculateLevel(newCount);
+
+        await userRef.update({
+          'savedRecipeCount': newCount,
+          'level': newLevel, // 💡 등급 업데이트!
+        });
 
         if (mounted) {
           setState(() => _isSaved = false);
@@ -84,22 +101,27 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           ).showSnackBar(const SnackBar(content: Text('저장이 취소되었습니다.')));
         }
       } else {
-        // ⭕ 저장 안 됨 -> 저장 로직
-        // 저장할 데이터 준비 (목록에서 보여줄 필수 정보들)
+        // ⭕ 저장 로직
         final saveData = {
           'id': docId,
           'name': widget.recipeData['name'],
           'imageUrl': widget.recipeData['imageUrl'],
           'cookingTime': widget.recipeData['cookingTime'],
           'difficulty': widget.recipeData['difficulty'],
-          'savedAt': FieldValue.serverTimestamp(), // 정렬용 타임스탬프
-          // 필요한 상세 데이터가 더 있다면 추가
+          'savedAt': FieldValue.serverTimestamp(),
+          // 필요 데이터 추가...
         };
 
         await recipeRef.set(saveData);
 
-        // 유저 정보의 카운트 증가 (+1)
-        await userRef.update({'savedRecipeCount': FieldValue.increment(1)});
+        // 개수 증가 및 등급 재계산
+        int newCount = currentCount + 1;
+        String newLevel = _calculateLevel(newCount);
+
+        await userRef.update({
+          'savedRecipeCount': newCount,
+          'level': newLevel, // 💡 등급 업데이트!
+        });
 
         if (mounted) {
           setState(() => _isSaved = true);
@@ -116,7 +138,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('오류가 발생했습니다. 다시 시도해주세요.')));
+        ).showSnackBar(const SnackBar(content: Text('오류가 발생했습니다.')));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);

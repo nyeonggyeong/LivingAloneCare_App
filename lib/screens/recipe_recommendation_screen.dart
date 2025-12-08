@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // 💡 Firestore 추가
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:livingalonecare_app/screens/recipe_detail_screen.dart';
 
 class RecipeRecommendationScreen extends StatefulWidget {
@@ -25,7 +25,7 @@ class _RecipeRecommendationScreenState
     _fetchRecommendations();
   }
 
-  // Cloud Functions 호출 (기존과 동일)
+  // Cloud Functions 호출
   Future<void> _fetchRecommendations() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -94,7 +94,7 @@ class _RecipeRecommendationScreenState
                       if (index == _recommendations.length) {
                         return _buildMoreButton();
                       }
-                      // 💡 여기서 별도 위젯(RecipeListCard)을 호출합니다.
+                      // 💡 RecipeListCard 위젯 사용
                       return RecipeListCard(recipe: _recommendations[index]);
                     },
                   ),
@@ -104,7 +104,6 @@ class _RecipeRecommendationScreenState
     );
   }
 
-  // ... (Header, Tabs, EmptyView, MoreButton 등 기존 디자인 코드는 그대로 둡니다)
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
@@ -326,7 +325,9 @@ class _RecipeRecommendationScreenState
   }
 }
 
-// 💡 [핵심] 리스트 아이템을 별도 위젯으로 분리 (각각 저장 상태 관리)
+// =======================================================
+// 💡 [수정된 부분] 리스트 아이템 위젯 (개수 확인 후 등급 업데이트)
+// =======================================================
 class RecipeListCard extends StatefulWidget {
   final dynamic recipe;
 
@@ -344,6 +345,14 @@ class _RecipeListCardState extends State<RecipeListCard> {
   void initState() {
     super.initState();
     _checkIfSaved();
+  }
+
+  // 💡 0. 등급 계산 로직 (기준에 따라 수정 가능)
+  String _calculateLevel(int count) {
+    if (count >= 50) return "요리 마스터";
+    if (count >= 30) return "고수 요리사";
+    if (count >= 10) return "중수 요리사"; // 10개 이상이면 중수
+    return "초보 요리사";
   }
 
   // 1. 저장 여부 확인
@@ -371,7 +380,7 @@ class _RecipeListCardState extends State<RecipeListCard> {
     }
   }
 
-  // 2. 저장 토글 (찜하기/해제)
+  // 💡 2. 저장/삭제 및 등급 업데이트 (핵심!)
   Future<void> _toggleSave() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -391,16 +400,9 @@ class _RecipeListCardState extends State<RecipeListCard> {
     final recipeRef = userRef.collection('saved_recipes').doc(docId);
 
     try {
+      // (1) 저장 또는 삭제 동작 수행
       if (_isSaved) {
-        // 삭제
-        await recipeRef.delete();
-        await userRef.update({'savedRecipeCount': FieldValue.increment(-1)});
-        if (mounted) {
-          setState(() => _isSaved = false);
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('저장이 취소되었습니다.')));
-        }
+        await recipeRef.delete(); // 삭제
       } else {
         // 저장
         final saveData = {
@@ -410,21 +412,45 @@ class _RecipeListCardState extends State<RecipeListCard> {
           'cookingTime': widget.recipe['cookingTime'],
           'difficulty': widget.recipe['difficulty'],
           'savedAt': FieldValue.serverTimestamp(),
-          // 필요하면 steps, ingredients 등 전체 데이터 저장
           'steps': widget.recipe['steps'],
           'requiredIngredients': widget.recipe['requiredIngredients'],
           'tags': widget.recipe['tags'],
         };
-
         await recipeRef.set(saveData);
-        await userRef.update({'savedRecipeCount': FieldValue.increment(1)});
+      }
 
-        if (mounted) {
-          setState(() => _isSaved = true);
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('나만의 레시피북에 저장되었어요! 🧡')));
-        }
+      // (2) ⭐️ 실제 저장된 개수를 DB에서 직접 세어옵니다. (가장 정확함)
+      final snapshot = await userRef.collection('saved_recipes').get();
+      final int actualCount = snapshot.docs.length;
+
+      // (3) 개수에 따른 등급 계산
+      final String newLevel = _calculateLevel(actualCount);
+
+      // (4) 유저 정보(개수와 등급) 일괄 업데이트
+      await userRef.update({
+        'savedRecipeCount': actualCount,
+        'level': newLevel,
+      });
+
+      // (5) UI 업데이트 및 메시지 표시
+      if (mounted) {
+        setState(() {
+          _isSaved = !_isSaved; // 상태 반전
+        });
+
+        String message = _isSaved ? '나만의 레시피북에 저장되었어요! 🧡' : '저장이 취소되었습니다.';
+
+        // 등급이 올랐을 때 축하 메시지 (선택 사항)
+        // if (_isSaved && (actualCount == 10 || actualCount == 30 || actualCount == 50)) {
+        //   message = '축하합니다! $newLevel(으)로 승급하셨어요! 🎉';
+        // }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 1),
+          ),
+        );
       }
     } catch (e) {
       print("저장 오류: $e");
@@ -450,8 +476,7 @@ class _RecipeListCardState extends State<RecipeListCard> {
             ),
           ),
         ).then((_) {
-          // 상세 화면에서 저장 상태가 바뀌었을 수도 있으므로 돌아오면 다시 확인
-          _checkIfSaved();
+          _checkIfSaved(); // 상세 화면에서 돌아오면 상태 갱신
         });
       },
       child: Container(
@@ -540,10 +565,10 @@ class _RecipeListCardState extends State<RecipeListCard> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      // 💡 찜하기 버튼 (IconButton으로 변경)
+                      // 찜하기 버튼
                       IconButton(
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(), // 터치 영역 최소화
+                        constraints: const BoxConstraints(),
                         icon: Icon(
                           _isSaved ? Icons.favorite : Icons.favorite_border,
                           size: 24,

@@ -192,6 +192,13 @@ class SavedRecipesScreen extends StatelessWidget {
     );
   }
 
+  String _calculateLevel(int count) {
+    if (count >= 50) return "요리 마스터";
+    if (count >= 30) return "고수 요리사";
+    if (count >= 10) return "중수 요리사";
+    return "초보 요리사";
+  }
+
   void _showUnsaveDialog(BuildContext context, String docId) {
     showDialog(
       context: context,
@@ -207,19 +214,23 @@ class SavedRecipesScreen extends StatelessWidget {
             onPressed: () async {
               final user = FirebaseAuth.instance.currentUser;
               if (user != null) {
-                // 1. saved_recipes 컬렉션에서 삭제
-                await FirebaseFirestore.instance
+                final userRef = FirebaseFirestore.instance
                     .collection('users')
-                    .doc(user.uid)
-                    .collection('saved_recipes')
-                    .doc(docId)
-                    .delete();
+                    .doc(user.uid);
 
-                // 2. 유저 정보의 savedRecipeCount 감소 (트랜잭션 권장하지만 간단히 처리)
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .update({'savedRecipeCount': FieldValue.increment(-1)});
+                // 1. 현재 정보 가져오기
+                final userDoc = await userRef.get();
+                int currentCount = userDoc.data()?['savedRecipeCount'] ?? 0;
+                int newCount = currentCount > 0 ? currentCount - 1 : 0;
+                String newLevel = _calculateLevel(newCount);
+
+                // 2. 삭제 및 업데이트 수행
+                await userRef.collection('saved_recipes').doc(docId).delete();
+
+                await userRef.update({
+                  'savedRecipeCount': newCount,
+                  'level': newLevel, // 💡 등급 업데이트
+                });
               }
               if (context.mounted) Navigator.pop(context);
             },

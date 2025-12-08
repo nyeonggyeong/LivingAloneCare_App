@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // 날짜 포맷
+import 'package:intl/intl.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:livingalonecare_app/screens/profile_edit_screen.dart';
 import 'package:livingalonecare_app/screens/saved_recipes_screen.dart';
@@ -9,10 +9,40 @@ import 'package:livingalonecare_app/screens/notification_setting_screen.dart';
 import 'package:livingalonecare_app/screens/settings_screen.dart';
 import 'package:livingalonecare_app/screens/help_screen.dart';
 import 'package:livingalonecare_app/screens/saved_money_screen.dart';
-import 'package:livingalonecare_app/screens/goal_history_screen.dart'; // 💡 월별 기록 화면
+import 'package:livingalonecare_app/screens/goal_history_screen.dart';
 
 class MyPageScreen extends StatelessWidget {
   const MyPageScreen({super.key});
+
+  // 💡 등급별 스타일(색상, 아이콘)을 가져오는 함수
+  Map<String, dynamic> _getLevelStyle(String level) {
+    switch (level) {
+      case '요리 마스터':
+        return {
+          'color': const Color(0xFFFF5252), // 빨간색
+          'icon': Icons.workspace_premium, // 훈장
+          'bg': const Color(0xFFFFEBEE), // 연한 빨강 배경
+        };
+      case '고수 요리사':
+        return {
+          'color': const Color(0xFFFFA36A), // 주황색 (앱 테마)
+          'icon': Icons.whatshot, // 불꽃
+          'bg': const Color(0xFFFFF3E0), // 연한 주황 배경
+        };
+      case '중수 요리사':
+        return {
+          'color': const Color(0xFF689F38), // 진한 초록
+          'icon': Icons.restaurant, // 수저/포크
+          'bg': const Color(0xFFF1F8E9), // 연한 초록 배경
+        };
+      default: // 초보 요리사
+        return {
+          'color': const Color(0xFF99D279), // 연두색
+          'icon': Icons.spa, // 새싹
+          'bg': const Color(0xFFF9FBE7), // 아주 연한 연두 배경
+        };
+    }
+  }
 
   // ==========================================
   // 1. 등급 안내 팝업
@@ -31,9 +61,9 @@ class MyPageScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: const [
-                  Icon(Icons.verified, color: Color(0xFF99D279), size: 28),
+              const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.black87, size: 24),
                   SizedBox(width: 8),
                   Text(
                     "등급 안내",
@@ -42,10 +72,27 @@ class MyPageScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-              _buildLevelItem("초보 요리사", "레시피 저장 0~9개", Colors.grey),
-              _buildLevelItem("중수 요리사", "레시피 저장 10개 이상", Colors.green),
-              _buildLevelItem("고수 요리사", "레시피 저장 30개 이상", Colors.orange),
-              _buildLevelItem("요리 마스터", "레시피 저장 50개 이상", Colors.redAccent),
+              // 💡 팝업 내부 아이템도 스타일 함수 적용
+              _buildLevelItem(
+                "초보 요리사",
+                "레시피 저장 0~9개",
+                _getLevelStyle("초보 요리사"),
+              ),
+              _buildLevelItem(
+                "중수 요리사",
+                "레시피 저장 10개 이상",
+                _getLevelStyle("중수 요리사"),
+              ),
+              _buildLevelItem(
+                "고수 요리사",
+                "레시피 저장 30개 이상",
+                _getLevelStyle("고수 요리사"),
+              ),
+              _buildLevelItem(
+                "요리 마스터",
+                "레시피 저장 50개 이상",
+                _getLevelStyle("요리 마스터"),
+              ),
               const SizedBox(height: 20),
             ],
           ),
@@ -54,30 +101,49 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLevelItem(String title, String condition, Color color) {
+  Widget _buildLevelItem(
+    String title,
+    String condition,
+    Map<String, dynamic> style,
+  ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Row(
         children: [
           Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: style['bg'],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(style['icon'], color: style['color'], size: 20),
           ),
           const SizedBox(width: 12),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const Spacer(),
-          Text(
-            condition,
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: style['color'], // 등급 색상 적용
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                condition,
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  // ... (이용 일수 팝업, 목표 설정 팝업 등은 기존 코드 유지) ...
+  // (코드 길이 절약을 위해 생략하지 않고 아래에 전체 포함합니다)
 
   // ==========================================
   // 2. 이용 일수 상세 팝업
@@ -196,14 +262,13 @@ class MyPageScreen extends StatelessWidget {
   }
 
   // ==========================================
-  // 3. 목표 설정 팝업 (가로로 넓게 + 빈칸 처리)
+  // 3. 목표 설정 팝업
   // ==========================================
   void _showGoalSettingDialog(
     BuildContext context,
     Map<String, dynamic> currentGoal,
     int currentSaved,
   ) {
-    // 목표 금액이 0이거나 없으면 '초기 상태'로 판단 -> 빈칸으로 시작
     final bool isInitial = (currentGoal['targetAmount'] ?? 0) == 0;
 
     final TextEditingController titleController = TextEditingController(
@@ -216,7 +281,6 @@ class MyPageScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) {
-        // LayoutBuilder를 써서 팝업 가로폭 확보
         return LayoutBuilder(
           builder: (context, constraints) {
             return AlertDialog(
@@ -231,7 +295,7 @@ class MyPageScreen extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               content: SizedBox(
-                width: constraints.maxWidth, // 가로 꽉 채우기
+                width: constraints.maxWidth,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -278,12 +342,10 @@ class MyPageScreen extends StatelessWidget {
                         target != null &&
                         target > 0 &&
                         user != null) {
-                      // 이번 달 문서 ID (예: 2025-12)
                       final String currentMonth = DateFormat(
                         'yyyy-MM',
                       ).format(DateTime.now());
 
-                      // goals 컬렉션에 저장 (월별 관리)
                       await FirebaseFirestore.instance
                           .collection('users')
                           .doc(user.uid)
@@ -349,7 +411,6 @@ class MyPageScreen extends StatelessWidget {
               );
             }
 
-            // 기본 데이터 파싱
             final data = snapshot.data!.data() as Map<String, dynamic>;
             final String nickname = data['nickname'] ?? '이름 없음';
             final String email = data['email'] ?? user.email ?? '';
@@ -370,7 +431,6 @@ class MyPageScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     children: [
-                      // 통계 카드 3종
                       Row(
                         children: [
                           Expanded(
@@ -425,25 +485,21 @@ class MyPageScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 20),
 
-                      // 💡 [목표 카드] 월별 데이터 구독
                       StreamBuilder<DocumentSnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('users')
                             .doc(user.uid)
                             .collection('goals')
-                            .doc(
-                              DateFormat('yyyy-MM').format(DateTime.now()),
-                            ) // 이번 달 문서
+                            .doc(DateFormat('yyyy-MM').format(DateTime.now()))
                             .snapshots(),
                         builder: (context, goalSnapshot) {
                           Map<String, dynamic> currentGoal = {};
-
                           if (goalSnapshot.hasData &&
                               goalSnapshot.data!.exists) {
                             currentGoal =
                                 goalSnapshot.data!.data()
                                     as Map<String, dynamic>;
-                            // (선택) 현재 저장 금액 동기화
+                            // 현재 금액 동기화
                             FirebaseFirestore.instance
                                 .collection('users')
                                 .doc(user.uid)
@@ -453,7 +509,6 @@ class MyPageScreen extends StatelessWidget {
                                 )
                                 .update({'currentSaved': totalSavedAmount});
                           }
-
                           return _buildGoalCard(
                             context,
                             totalSavedAmount,
@@ -464,7 +519,6 @@ class MyPageScreen extends StatelessWidget {
 
                       const SizedBox(height: 20),
 
-                      // 메뉴 리스트
                       _buildMenuOption(
                         context,
                         Icons.settings,
@@ -543,17 +597,15 @@ class MyPageScreen extends StatelessWidget {
     return NumberFormat('#,###').format(amount);
   }
 
-  // 💡 [디자인 수정됨] 목표 카드 위젯
+  // 💡 [수정됨] 목표 카드 위젯 (디자인)
   Widget _buildGoalCard(
     BuildContext context,
     int totalSavedAmount,
     Map<String, dynamic> goalData,
   ) {
-    // 1. 데이터 파싱
     final String title = goalData['title'] ?? '첫 목표를 설정해주세요';
     final int targetAmount = goalData['targetAmount'] ?? 0;
 
-    // 2. 달성률 계산
     double progress = 0.0;
     if (targetAmount > 0) {
       progress = totalSavedAmount / targetAmount;
@@ -561,7 +613,6 @@ class MyPageScreen extends StatelessWidget {
     }
     final int percentText = (progress * 100).toInt();
 
-    // 3. D-Day 계산
     final now = DateTime.now();
     final lastDay = DateTime(now.year, now.month + 1, 0);
     final daysLeft = lastDay.difference(now).inDays;
@@ -589,12 +640,10 @@ class MyPageScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 상단 영역 (텍스트 정보 vs 퍼센트 정보)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start, // 💡 우측 정보를 위쪽으로 올림
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 좌측: 라벨, 제목, 히스토리 버튼
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,8 +652,7 @@ class MyPageScreen extends StatelessWidget {
                         "이번 달 달성률",
                         style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
-                      const SizedBox(height: 6), // 간격 조정
-                      // 제목 + 편집 아이콘 + 히스토리 버튼 줄
+                      const SizedBox(height: 6),
                       Wrap(
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
@@ -622,9 +670,7 @@ class MyPageScreen extends StatelessWidget {
                             color: Colors.white54,
                             size: 14,
                           ),
-
-                          const SizedBox(width: 12), // 제목과 히스토리 버튼 사이 간격
-                          // 💡 히스토리 버튼 (아이콘 + 설명)
+                          const SizedBox(width: 12),
                           GestureDetector(
                             onTap: () {
                               Navigator.push(
@@ -641,9 +687,7 @@ class MyPageScreen extends StatelessWidget {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(
-                                  0.15,
-                                ), // 살짝 배경을 줘서 버튼처럼 보이게
+                                color: Colors.white.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
@@ -656,7 +700,7 @@ class MyPageScreen extends StatelessWidget {
                                   ),
                                   SizedBox(width: 4),
                                   Text(
-                                    "기록", // 설명 추가
+                                    "기록",
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 11,
@@ -669,7 +713,6 @@ class MyPageScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 6),
                       Text(
                         targetAmount > 0
@@ -683,8 +726,6 @@ class MyPageScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-
-                // 우측: 퍼센트 및 D-Day (위쪽 정렬됨)
                 if (targetAmount > 0)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -694,7 +735,7 @@ class MyPageScreen extends StatelessWidget {
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 24, // 숫자 크기 살짝 키움
+                          fontSize: 24,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -720,10 +761,7 @@ class MyPageScreen extends StatelessWidget {
                   ),
               ],
             ),
-
             const SizedBox(height: 16),
-
-            // 진행 바
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: LinearProgressIndicator(
@@ -739,6 +777,7 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
+  // 💡 [수정됨] 헤더 (등급별 아이콘/색상 적용)
   Widget _buildHeader(
     BuildContext context,
     String nickname,
@@ -746,6 +785,9 @@ class MyPageScreen extends StatelessWidget {
     String level,
     String? imageUrl,
   ) {
+    // 등급 정보 가져오기
+    final levelStyle = _getLevelStyle(level);
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -855,6 +897,8 @@ class MyPageScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 16),
+
+                      // 💡 등급 표시 (스타일 적용)
                       GestureDetector(
                         onTap: () {
                           _showLevelGuide(context);
@@ -865,17 +909,17 @@ class MyPageScreen extends StatelessWidget {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F8E9),
+                            color: levelStyle['bg'], // 등급별 배경색
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              const Icon(
-                                Icons.verified,
-                                color: Color(0xFF99D279),
-                                size: 20,
+                              Icon(
+                                levelStyle['icon'], // 등급별 아이콘
+                                color: levelStyle['color'],
+                                size: 22,
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 10),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -898,9 +942,10 @@ class MyPageScreen extends StatelessWidget {
                                   ),
                                   Text(
                                     level,
-                                    style: const TextStyle(
-                                      fontSize: 15,
+                                    style: TextStyle(
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
+                                      color: levelStyle['color'], // 등급 이름 색상
                                     ),
                                   ),
                                 ],
@@ -919,6 +964,8 @@ class MyPageScreen extends StatelessWidget {
       ],
     );
   }
+
+  // ... (buildStatCard, buildMenuOption 등 기존 함수 유지)
 
   Widget _buildStatCard(
     String title,
