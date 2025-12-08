@@ -12,12 +12,29 @@ class ProfileEditScreen extends StatefulWidget {
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nicknameController = TextEditingController();
+  final TextEditingController _bioController =
+      TextEditingController(); // 한 줄 소개
 
-  // 데이터 로딩 상태
   bool _isLoading = true;
   String _email = '';
-  String _level = '';
   String? _profileImageUrl;
+
+  // 식습관 태그 목록 (DB에 저장될 리스트)
+  List<String> _selectedPreferences = [];
+
+  // 선택 가능한 옵션들
+  final List<String> _preferenceOptions = [
+    '다이어트',
+    '비건',
+    '채식',
+    '육류러버',
+    '매운맛 고수',
+    '맵찔이',
+    '저염식',
+    '키토제닉',
+    '견과류 알러지',
+    '유제품 알러지',
+  ];
 
   @override
   void initState() {
@@ -28,10 +45,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   @override
   void dispose() {
     _nicknameController.dispose();
+    _bioController.dispose();
     super.dispose();
   }
 
-  // 사용자 정보 불러오기
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -46,20 +63,24 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           setState(() {
             _email = user.email ?? '';
             _nicknameController.text = data['nickname'] ?? '';
-            _level = data['level'] ?? '초보 요리사';
+            _bioController.text = data['bio'] ?? ''; // 한 줄 소개 불러오기
             _profileImageUrl = data['profileImage'];
+
+            // 태그 불러오기
+            if (data['preferences'] != null) {
+              _selectedPreferences = List<String>.from(data['preferences']);
+            }
+
             _isLoading = false;
           });
         }
       } catch (e) {
-        // 에러 처리
-        print('Error loading user data: $e');
+        print('Error: $e');
         setState(() => _isLoading = false);
       }
     }
   }
 
-  // 정보 저장하기
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -73,14 +94,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             .doc(user.uid)
             .update({
               'nickname': _nicknameController.text.trim(),
-              // 이미지는 추후 Storage 구현 시 업데이트 로직 추가
+              'bio': _bioController.text.trim(), // 한 줄 소개 저장
+              'preferences': _selectedPreferences, // 태그 저장
             });
 
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('정보가 수정되었습니다.')));
-        Navigator.pop(context); // 수정 후 뒤로가기
+        ).showSnackBar(const SnackBar(content: Text('프로필이 업데이트되었습니다! ✨')));
+        Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(
           context,
@@ -91,30 +113,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
-  // 비밀번호 재설정 메일 발송
-  Future<void> _sendPasswordResetEmail() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user?.email != null) {
-      try {
-        await FirebaseAuth.instance.sendPasswordResetEmail(email: user!.email!);
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('비밀번호 재설정 이메일을 보냈습니다.')));
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('메일 발송 실패. 잠시 후 다시 시도해주세요.')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('내 정보 수정', style: TextStyle(color: Colors.black)),
+        title: const Text(
+          '프로필 편집',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -125,7 +132,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           TextButton(
             onPressed: _isLoading ? null : _saveProfile,
             child: const Text(
-              '저장',
+              '완료',
               style: TextStyle(
                 color: Color(0xFFFFA36A),
                 fontWeight: FontWeight.bold,
@@ -136,7 +143,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFFFA36A)),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Form(
@@ -144,7 +153,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. 프로필 이미지 섹션
+                    // 1. 프로필 이미지 (기존 동일)
                     Center(
                       child: Stack(
                         children: [
@@ -163,7 +172,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                     : const AssetImage(
                                             'assets/images/profile_placeholder.png',
                                           )
-                                          as ImageProvider, // 기본 이미지 에셋 필요 (없으면 Icon으로 대체 가능)
+                                          as ImageProvider,
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -178,26 +187,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           Positioned(
                             bottom: 0,
                             right: 0,
-                            child: GestureDetector(
-                              onTap: () {
-                                // TODO: 이미지 피커(Image Picker) 기능 구현 필요
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('이미지 변경 기능은 추후 구현됩니다.'),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF99D279),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.camera_alt,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF99D279),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 20,
                               ),
                             ),
                           ),
@@ -206,22 +205,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                     const SizedBox(height: 30),
 
-                    // 2. 닉네임 입력
+                    // 2. 닉네임 & 이메일
                     _buildLabel('닉네임'),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _nicknameController,
                       decoration: _inputDecoration('닉네임을 입력하세요'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '닉네임을 입력해주세요.';
-                        }
-                        return null;
-                      },
+                      validator: (v) => v!.isEmpty ? '닉네임을 입력해주세요.' : null,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                    // 3. 이메일 (수정 불가)
                     _buildLabel('이메일'),
                     const SizedBox(height: 8),
                     TextFormField(
@@ -234,65 +227,66 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // 4. 현재 등급 (수정 불가)
-                    _buildLabel('현재 등급'),
+                    // 3. 한 줄 소개 (New!)
+                    _buildLabel('한 줄 소개'),
                     const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.verified,
-                            color: Color(0xFF99D279),
-                            size: 20,
+                    TextFormField(
+                      controller: _bioController,
+                      maxLength: 50, // 글자수 제한
+                      decoration: _inputDecoration('나만의 요리 스타일을 소개해주세요!'),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // 4. 식습관 태그 선택 (New!)
+                    _buildLabel('나의 식습관 & 알레르기'),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "선택하신 정보를 바탕으로 레시피를 추천해드려요.",
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _preferenceOptions.map((option) {
+                        final isSelected = _selectedPreferences.contains(
+                          option,
+                        );
+                        return FilterChip(
+                          label: Text(option),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedPreferences.add(option);
+                              } else {
+                                _selectedPreferences.remove(option);
+                              }
+                            });
+                          },
+                          selectedColor: const Color(
+                            0xFFFFA36A,
+                          ).withOpacity(0.2),
+                          checkmarkColor: const Color(0xFFFFA36A),
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? const Color(0xFFFFA36A)
+                                : Colors.black87,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _level,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                          backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFFFFA36A)
+                                  : Colors.grey[300]!,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-
-                    // 5. 계정 관리 버튼들
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(
-                        Icons.lock_reset,
-                        color: Colors.black54,
-                      ),
-                      title: const Text('비밀번호 변경'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: _sendPasswordResetEmail,
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.person_off, color: Colors.red),
-                      title: const Text(
-                        '회원 탈퇴',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                      onTap: () {
-                        // TODO: 회원 탈퇴 로직 구현 (재인증 필요)
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('회원 탈퇴 기능은 안전을 위해 재인증이 필요합니다.'),
-                          ),
                         );
-                      },
+                      }).toList(),
                     ),
                   ],
                 ),

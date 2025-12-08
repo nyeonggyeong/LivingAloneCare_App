@@ -7,6 +7,7 @@ import 'package:livingalonecare_app/screens/saved_recipes_screen.dart'; // 저�
 import 'package:livingalonecare_app/screens/notification_setting_screen.dart'; // 알림 설정
 import 'package:livingalonecare_app/screens/settings_screen.dart'; // 설정
 import 'package:livingalonecare_app/screens/help_screen.dart'; // 도움말
+import 'package:livingalonecare_app/screens/saved_money_screen.dart'; //절약한 금액
 
 class MyPageScreen extends StatelessWidget {
   const MyPageScreen({super.key});
@@ -290,6 +291,16 @@ class MyPageScreen extends StatelessWidget {
                               "절약한\n금액",
                               "${_formatCurrency(totalSavedAmount)}원",
                               Icons.trending_up,
+
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const SavedMoneyScreen(),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(width: 12),
