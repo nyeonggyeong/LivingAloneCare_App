@@ -215,6 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
+      resizeToAvoidBottomInset: false,
       body: _buildBody(),
 
       floatingActionButton: Container(
