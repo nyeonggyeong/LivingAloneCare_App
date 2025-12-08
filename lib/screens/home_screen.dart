@@ -7,6 +7,7 @@ import 'package:livingalonecare_app/screens/inventory_screen.dart';
 import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:livingalonecare_app/data/ingredient_data.dart';
+import 'package:livingalonecare_app/screens/notification_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -428,7 +429,14 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 children: [
                   IconButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationScreen(),
+                        ),
+                      );
+                    },
                     icon: const Icon(
                       Icons.notifications,
                       color: Colors.white,
