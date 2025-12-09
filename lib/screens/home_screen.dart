@@ -1,39 +1,167 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:intl/intl.dart';
 import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
 import 'package:livingalonecare_app/screens/inventory_screen.dart';
+import 'package:livingalonecare_app/screens/my_page_screen.dart';
 import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
-import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:livingalonecare_app/data/ingredient_data.dart';
+import 'package:livingalonecare_app/screens/notification_screen.dart';
+import 'package:livingalonecare_app/screens/community_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialIndex;
+
+  const HomeScreen({super.key, this.initialIndex = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-
+  late int _selectedIndex;
   final User? user = FirebaseAuth.instance.currentUser;
 
-  Future<void> _signOut() async {
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialIndex;
+    _setupFCM();
+  }
+
+  Future<void> _setupFCM() async {
+    if (user == null) return;
+    final messaging = FirebaseMessaging.instance;
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      print('🔔 알림 권한 허용됨');
+      String? token = await messaging.getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user!.uid).set(
+          {'fcmToken': token, 'lastLogin': FieldValue.serverTimestamp()},
+          SetOptions(merge: true),
+        );
+      }
+    }
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        ScaffoldMessenger.of(context).clearMaterialBanners();
+
+        ScaffoldMessenger.of(context).showMaterialBanner(
+          MaterialBanner(
+            backgroundColor: Colors.white,
+            elevation: 5,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFA36A).withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.notifications_active_rounded,
+                color: Color(0xFFFFA36A),
+                size: 28,
+              ),
+            ),
+
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.notification!.title ?? '알림',
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message.notification!.body ?? '',
+                  style: TextStyle(
+                    color: Colors.grey[700],
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+
+            actions: [
+              TextButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFFFA36A), // 버튼 글자색
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+        );
+
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+          }
+        });
+      }
+    });
+  }
+
+  Future<void> _deleteIngredient(String docId) async {
     try {
-      await FirebaseAuth.instance.signOut();
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('inventory')
+          .doc(docId)
+          .delete();
+
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      print("로그아웃 오류: $e");
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('로그아웃 중 오류가 발생했습니다.')));
+      ).showSnackBar(const SnackBar(content: Text('재료가 삭제되었습니다 🗑️')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('삭제 중 오류 발생: $e')));
     }
+  }
+
+  void _showDeleteDialog(String docId, String name) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("재료 삭제"),
+        content: Text("'$name'을(를) 냉장고에서 뺄까요?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("취소", style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteIngredient(docId);
+            },
+            child: const Text("삭제", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onItemTapped(int index) {
@@ -56,9 +184,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return const RecipeRecommendationScreen();
       case 3:
-        return const Center(child: Text("커뮤니티 화면 (준비중)"));
+        return const CommunityScreen();
       case 4:
-        return const Center(child: Text("마이페이지 (준비중)"));
+        return const MyPageScreen();
       default:
         return _buildHomeContent();
     }
@@ -72,6 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
+      resizeToAvoidBottomInset: false,
       body: _buildBody(),
 
       floatingActionButton: Container(
@@ -124,7 +253,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-      // 하단 내비게이션 바
       bottomNavigationBar: BottomAppBar(
         color: Colors.white,
         elevation: 10,
@@ -284,22 +412,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              // 알림 아이콘 옆에 로그아웃 버튼 추가
               Row(
                 children: [
                   IconButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationScreen(),
+                        ),
+                      );
+                    },
                     icon: const Icon(
                       Icons.notifications,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _signOut, // 로그아웃 기능 연결
-                    tooltip: "로그아웃",
-                    icon: const Icon(
-                      Icons.logout,
                       color: Colors.white,
                       size: 28,
                     ),
@@ -328,16 +453,49 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.kitchen,
                       title: '보유 재료',
                       value: countText,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const InventoryScreen(
+                              sortType: InventorySortType.registeredAt,
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
               ),
               const SizedBox(width: 16),
+
               Expanded(
-                child: _buildSummaryCard(
-                  icon: Icons.trending_down,
-                  title: '이번 달 절약',
-                  value: '32%',
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user!.uid)
+                      .snapshots(), // 유저 문서 전체를 구독
+                  builder: (context, snapshot) {
+                    String savedText = '0원';
+
+                    if (snapshot.hasData &&
+                        snapshot.data != null &&
+                        snapshot.data!.data() != null) {
+                      final data =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      // savedMoney 필드를 가져오고, 없으면 totalSavedAmount, 그것도 없으면 0
+                      final int amount =
+                          data['savedMoney'] ?? data['totalSavedAmount'] ?? 0;
+                      // 숫자 포맷팅 (예: 15,000원)
+                      savedText = '${NumberFormat('#,###').format(amount)}원';
+                    }
+
+                    return _buildSummaryCard(
+                      icon: Icons.savings_outlined, // 아이콘 변경 (돼지저금통 느낌)
+                      title: '이번 달 아낀 돈', // 타이틀 변경
+                      value: savedText,
+                    );
+                  },
                 ),
               ),
             ],
@@ -380,32 +538,36 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String title,
     required String value,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Colors.white, size: 28),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Colors.white, size: 28),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

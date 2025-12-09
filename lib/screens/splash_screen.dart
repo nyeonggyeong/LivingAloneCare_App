@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // 💡 Firebase Auth 추가
 import 'package:livingalonecare_app/screens/home_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:livingalonecare_app/screens/signup_screen.dart'; // 💡 폰트 패키지 임포트
 
 void main() => runApp(const MyApp());
 
@@ -81,10 +83,10 @@ class SplashScreen extends StatelessWidget {
             SizedBox(height: 12),
             Text(
               "“자취생 키우기”",
-              style: TextStyle(
+              style: GoogleFonts.doHyeon(
                 color: Colors.white,
-                fontSize: 50,
-                fontWeight: FontWeight.w300,
+                fontSize: 52,
+                fontWeight: FontWeight.w200,
               ),
             ),
             SizedBox(height: 16),
@@ -101,7 +103,7 @@ class SplashScreen extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Image.asset(
-                'assets/images/salad.jpg',
+                'assets/images/salad.png',
                 width: 320,
                 height: 250,
                 fit: BoxFit.cover,
@@ -125,7 +127,7 @@ class SplashScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const LoginScreen(),
+                      builder: (context) => const SignupScreen(),
                     ),
                   );
                 }

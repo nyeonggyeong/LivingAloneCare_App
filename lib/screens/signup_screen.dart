@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:livingalonecare_app/main.dart';
+import 'package:livingalonecare_app/screens/splash_screen.dart'; // 💡 SplashScreen이 정의된 파일
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -26,18 +29,19 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  // Firebase 회원가입 로직
   Future<void> _registerWithFirebase() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
     final name = _nameController.text.trim();
+    final nickname = _nicknameController.text.trim();
 
-    // 유효성 검사
     if (email.isEmpty ||
         password.isEmpty ||
         confirmPassword.isEmpty ||
-        name.isEmpty) {
+        name.isEmpty ||
+        nickname.isEmpty) {
+      // 닉네임 체크 추가
       _showSnackBar('모든 필드를 입력해주세요.');
       return;
     }
@@ -53,17 +57,34 @@ class _SignupScreenState extends State<SignupScreen> {
     }
 
     try {
-      // Firebase 계정 생성 요청
-      // 이름/닉네임 저장은 Firestore DB 연동 시 추가 구현 필요, 일단 계정 생성만 진행
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+
+      final user = userCredential.user;
+
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          'email': email,
+          'name': name,
+          'nickname': nickname,
+          'level': '초보 요리사', // 기본 등급
+          'profileImage': null,
+          'savedRecipeCount': 0,
+          'totalSavedAmount': 0,
+
+          'registeredAt': FieldValue.serverTimestamp(),
+
+          'monthlyGoal': {
+            'title': '첫 목표를 설정해주세요',
+            'description': '목표 설정하고 식비 아끼기',
+            'progress': 0.0,
+          },
+        });
+      }
 
       // 성공 시
       _showSnackBar('회원가입 성공! 로그인해주세요.');
-
-      // 화면 닫기 (로그인 화면으로 돌아감)
       if (!mounted) return;
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
@@ -94,7 +115,6 @@ class _SignupScreenState extends State<SignupScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          // 로그인 화면과 동일한 그라데이션 배경
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -114,7 +134,16 @@ class _SignupScreenState extends State<SignupScreen> {
                   color: Colors.black,
                   size: 28,
                 ),
-                onPressed: () => Navigator.pop(context),
+                // 👇 여기를 수정했습니다
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SplashScreen(),
+                    ),
+                    (route) => false, // 이전의 모든 화면 스택을 제거 (뒤로가기 방지)
+                  );
+                },
               ),
             ),
             const SizedBox(height: 10),
@@ -256,7 +285,6 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
             const SizedBox(height: 20),
 
-            // 하단 로그인 이동 링크
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -284,7 +312,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // 텍스트 라벨 위젯
   Widget _buildLabel(String text) {
     return Text(
       text,
@@ -296,7 +323,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // 입력 필드 위젯 (중복 코드 제거용)
   Widget _buildTextField(
     TextEditingController controller,
     String hint,
