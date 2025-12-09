@@ -14,9 +14,14 @@ class RecipeRecommendationScreen extends StatefulWidget {
 
 class _RecipeRecommendationScreenState
     extends State<RecipeRecommendationScreen> {
-  List<dynamic> _recommendations = [];
+  List<dynamic> _recommendationList = [];
+  List<dynamic> _popularList = [];
+
   bool _isLoading = true;
   String? _errorMessage;
+
+  int _selectedTabIndex = 0;
+
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -25,56 +30,153 @@ class _RecipeRecommendationScreenState
     _fetchRecommendations();
   }
 
-  // Cloud Functions 호출
   Future<void> _fetchRecommendations() async {
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _isLoading = false;
           _errorMessage = "로그인이 필요합니다.";
         });
-      }
       return;
     }
+
+    // 이미 데이터가 있으면 로딩 생략
+    if (_recommendationList.isNotEmpty) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    setState(() => _isLoading = true);
 
     try {
       final functions = FirebaseFunctions.instanceFor(
         region: 'asia-northeast3',
       );
-
       final HttpsCallable callable = functions.httpsCallable(
         'recommendRecipes',
       );
-
       final result = await callable.call();
       final data = Map<String, dynamic>.from(result.data as Map);
 
       if (mounted) {
         setState(() {
-          _recommendations = data['recommendations'] ?? [];
+          _recommendationList = data['recommendations'] ?? [];
           _isLoading = false;
         });
       }
     } catch (e) {
-      print("❌ Error: $e");
+      print("❌ Recommendation Error: $e");
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchPopularRecipes() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    if (_popularList.isNotEmpty) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final inventorySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('inventory')
+          .get();
+
+      final myIngredients = inventorySnapshot.docs
+          .map((doc) => doc.data()['name'].toString().trim())
+          .toList();
+
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection('recipes')
+          .orderBy('likeCount', descending: true)
+          .limit(20)
+          .get();
+
+      List<dynamic> fetchedList = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+
+        final List<dynamic> requiredIngredients =
+            data['ingredients'] ?? data['requiredIngredients'] ?? [];
+
+        List<String> missing = [];
+
+        for (var req in requiredIngredients) {
+          String reqName = '';
+          if (req is Map) {
+            reqName = (req['name'] ?? req['ingredientId'] ?? '').toString();
+          } else {
+            reqName = req.toString();
+          }
+
+          reqName = reqName.split('(').first.trim();
+
+          if (reqName.isEmpty) continue;
+
+          bool hasIt = myIngredients.any(
+            (my) => my.contains(reqName) || reqName.contains(my),
+          );
+
+          if (!hasIt) {
+            missing.add(reqName);
+          }
+        }
+
+        data['missingIngredients'] = missing;
+        data['matchingRate'] = missing.isEmpty
+            ? 100
+            : (100 - (missing.length * 10)).clamp(0, 90);
+
+        return data;
+      }).toList();
+
       if (mounted) {
         setState(() {
+          _popularList = fetchedList;
           _isLoading = false;
         });
       }
+    } catch (e) {
+      print("❌ Popular Recipe Error: $e");
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _onTabChanged(int index) {
+    if (_selectedTabIndex == index) return;
+
+    setState(() {
+      _selectedTabIndex = index;
+      _isLoading = true;
+    });
+
+    if (index == 0) {
+      _fetchRecommendations();
+    } else {
+      _fetchPopularRecipes();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 현재 탭에 따라 보여줄 리스트 결정
+    final currentList = _selectedTabIndex == 0
+        ? _recommendationList
+        : _popularList;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9F9F9),
       body: Column(
         children: [
           _buildHeader(),
-          _buildTabs(),
+          _buildTabs(), // 탭 부분 수정됨
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -82,20 +184,21 @@ class _RecipeRecommendationScreenState
                   )
                 : _errorMessage != null
                 ? Center(child: Text(_errorMessage!))
-                : _recommendations.isEmpty
+                : currentList.isEmpty
                 ? _buildEmptyView()
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 10,
                     ),
-                    itemCount: _recommendations.length + 1,
+                    // 인기 레시피 탭일 때는 '더보기' 버튼 숨길지 결정 가능
+                    itemCount:
+                        currentList.length + (_selectedTabIndex == 0 ? 1 : 0),
                     itemBuilder: (context, index) {
-                      if (index == _recommendations.length) {
+                      if (index == currentList.length) {
                         return _buildMoreButton();
                       }
-                      // 💡 RecipeListCard 위젯 사용
-                      return RecipeListCard(recipe: _recommendations[index]);
+                      return RecipeListCard(recipe: currentList[index]);
                     },
                   ),
           ),
@@ -104,7 +207,9 @@ class _RecipeRecommendationScreenState
     );
   }
 
+  // ... _buildHeader() 코드는 기존과 동일 ...
   Widget _buildHeader() {
+    // (기존 코드 그대로 사용)
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
       decoration: const BoxDecoration(
@@ -168,27 +273,34 @@ class _RecipeRecommendationScreenState
             ),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         "보유 재료로 만들 수 있는",
                         style: TextStyle(color: Colors.white70, fontSize: 13),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        "200개 이상의 냉파 레시피",
-                        style: TextStyle(
+                        _selectedTabIndex == 0
+                            ? "AI 맞춤 추천 레시피"
+                            : "지금 가장 핫한 레시피 🔥", // 탭에 따라 텍스트 변경
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: 6),
+                      const SizedBox(height: 6),
                       Text(
-                        "보유 재료 90% 이상 활용 가능",
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                        _selectedTabIndex == 0
+                            ? "보유 재료 90% 이상 활용 가능"
+                            : "다른 사람들이 많이 저장했어요",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -199,8 +311,10 @@ class _RecipeRecommendationScreenState
                     color: Colors.white.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(
-                    Icons.restaurant_menu,
+                  child: Icon(
+                    _selectedTabIndex == 0
+                        ? Icons.restaurant_menu
+                        : Icons.whatshot,
                     color: Colors.white,
                     size: 32,
                   ),
@@ -213,61 +327,62 @@ class _RecipeRecommendationScreenState
     );
   }
 
+  // 💡 [수정된 부분] 탭 위젯 (클릭 기능 및 스타일 변경)
   Widget _buildTabs() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: Row(
         children: [
           Expanded(
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFA36A), Color(0xFF99D279)],
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF99D279).withOpacity(0.4),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Center(
-                child: Text(
-                  "맞춤 추천",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
+            child: GestureDetector(
+              onTap: () => _onTabChanged(0), // 0번 탭 클릭
+              child: _buildSingleTab("맞춤 추천", 0),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: const Center(
-                child: Text(
-                  "인기 레시피",
-                  style: TextStyle(
-                    color: Colors.black54,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
+            child: GestureDetector(
+              onTap: () => _onTabChanged(1), // 1번 탭 클릭
+              child: _buildSingleTab("인기 레시피", 1),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSingleTab(String title, int index) {
+    final bool isActive = _selectedTabIndex == index;
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: isActive
+            ? const LinearGradient(
+                colors: [Color(0xFFFFA36A), Color(0xFF99D279)],
+              )
+            : null,
+        color: isActive ? null : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF99D279).withOpacity(0.4),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+        border: isActive ? null : Border.all(color: Colors.grey.shade300),
+      ),
+      child: Center(
+        child: Text(
+          title,
+          style: TextStyle(
+            color: isActive ? Colors.white : Colors.black54,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
       ),
     );
   }
@@ -299,17 +414,19 @@ class _RecipeRecommendationScreenState
           Icon(Icons.kitchen, size: 60, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
-            "냉장고가 비어있거나\n추천할 레시피를 찾지 못했어요 😭",
+            _selectedTabIndex == 0
+                ? "추천할 레시피를 찾지 못했어요 😭"
+                : "아직 등록된 레시피가 없어요 😭",
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey[500], fontSize: 16),
           ),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
-              setState(() {
-                _isLoading = true;
-              });
-              _fetchRecommendations();
+              setState(() => _isLoading = true);
+              _selectedTabIndex == 0
+                  ? _fetchRecommendations()
+                  : _fetchPopularRecipes();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFA36A),
@@ -325,9 +442,6 @@ class _RecipeRecommendationScreenState
   }
 }
 
-// =======================================================
-// 💡 [수정된 부분] 리스트 아이템 위젯 (개수 확인 후 등급 업데이트)
-// =======================================================
 class RecipeListCard extends StatefulWidget {
   final dynamic recipe;
 
@@ -347,7 +461,6 @@ class _RecipeListCardState extends State<RecipeListCard> {
     _checkIfSaved();
   }
 
-  // 💡 0. 등급 계산 로직 (기준에 따라 수정 가능)
   String _calculateLevel(int count) {
     if (count >= 50) return "요리 마스터";
     if (count >= 30) return "고수 요리사";
@@ -355,7 +468,6 @@ class _RecipeListCardState extends State<RecipeListCard> {
     return "초보 요리사";
   }
 
-  // 1. 저장 여부 확인
   Future<void> _checkIfSaved() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -380,7 +492,6 @@ class _RecipeListCardState extends State<RecipeListCard> {
     }
   }
 
-  // 💡 2. 저장/삭제 및 등급 업데이트 (핵심!)
   Future<void> _toggleSave() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -394,17 +505,28 @@ class _RecipeListCardState extends State<RecipeListCard> {
     setState(() => _isProcessing = true);
 
     final String docId = widget.recipe['id'] ?? widget.recipe['name'];
+
     final userRef = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid);
-    final recipeRef = userRef.collection('saved_recipes').doc(docId);
+    final myRecipeRef = userRef.collection('saved_recipes').doc(docId);
+
+    final publicRecipeRef = FirebaseFirestore.instance
+        .collection('recipes')
+        .doc(docId);
 
     try {
-      // (1) 저장 또는 삭제 동작 수행
       if (_isSaved) {
-        await recipeRef.delete(); // 삭제
+        await myRecipeRef.delete();
+
+        try {
+          await publicRecipeRef.update({
+            'likeCount': FieldValue.increment(-1),
+          }); // 카운트 감소
+        } catch (e) {
+          print("원본 레시피 카운트 감소 실패 (무시 가능): $e");
+        }
       } else {
-        // 저장
         final saveData = {
           'id': docId,
           'name': widget.recipe['name'],
@@ -416,35 +538,37 @@ class _RecipeListCardState extends State<RecipeListCard> {
           'requiredIngredients': widget.recipe['requiredIngredients'],
           'tags': widget.recipe['tags'],
         };
-        await recipeRef.set(saveData);
+        await myRecipeRef.set(saveData);
+
+        await publicRecipeRef.set({
+          'name': widget.recipe['name'],
+          'imageUrl': widget.recipe['imageUrl'],
+          'cookingTime': widget.recipe['cookingTime'],
+          'difficulty': widget.recipe['difficulty'],
+          'likeCount': FieldValue.increment(1),
+
+          'requiredIngredients':
+              widget.recipe['requiredIngredients'] ??
+              widget.recipe['ingredients'] ??
+              [],
+          'tags': widget.recipe['tags'] ?? [],
+        }, SetOptions(merge: true));
       }
 
-      // (2) ⭐️ 실제 저장된 개수를 DB에서 직접 세어옵니다. (가장 정확함)
       final snapshot = await userRef.collection('saved_recipes').get();
       final int actualCount = snapshot.docs.length;
-
-      // (3) 개수에 따른 등급 계산
       final String newLevel = _calculateLevel(actualCount);
 
-      // (4) 유저 정보(개수와 등급) 일괄 업데이트
       await userRef.update({
         'savedRecipeCount': actualCount,
         'level': newLevel,
       });
 
-      // (5) UI 업데이트 및 메시지 표시
       if (mounted) {
         setState(() {
-          _isSaved = !_isSaved; // 상태 반전
+          _isSaved = !_isSaved;
         });
-
         String message = _isSaved ? '나만의 레시피북에 저장되었어요! 🧡' : '저장이 취소되었습니다.';
-
-        // 등급이 올랐을 때 축하 메시지 (선택 사항)
-        // if (_isSaved && (actualCount == 10 || actualCount == 30 || actualCount == 50)) {
-        //   message = '축하합니다! $newLevel(으)로 승급하셨어요! 🎉';
-        // }
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
@@ -454,6 +578,11 @@ class _RecipeListCardState extends State<RecipeListCard> {
       }
     } catch (e) {
       print("저장 오류: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("오류가 발생했습니다: $e")));
+      }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }

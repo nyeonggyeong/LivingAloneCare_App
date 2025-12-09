@@ -2,29 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:intl/intl.dart';
 import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
 import 'package:livingalonecare_app/screens/inventory_screen.dart';
 import 'package:livingalonecare_app/screens/my_page_screen.dart';
 import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
-import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:livingalonecare_app/data/ingredient_data.dart';
 import 'package:livingalonecare_app/screens/notification_screen.dart';
 import 'package:livingalonecare_app/screens/community_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialIndex;
+
+  const HomeScreen({super.key, this.initialIndex = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
   final User? user = FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialIndex;
     _setupFCM();
   }
 
@@ -116,24 +119,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     });
-  }
-
-  // 로그아웃 함수
-  Future<void> _signOut() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      print("로그아웃 오류: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('로그아웃 중 오류가 발생했습니다.')));
-    }
   }
 
   Future<void> _deleteIngredient(String docId) async {
@@ -268,7 +253,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-      // 하단 내비게이션 바
       bottomNavigationBar: BottomAppBar(
         color: Colors.white,
         elevation: 10,
@@ -428,7 +412,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              // 알림 아이콘 옆에 로그아웃 버튼 추가
               Row(
                 children: [
                   IconButton(
@@ -442,15 +425,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     icon: const Icon(
                       Icons.notifications,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _signOut, // 로그아웃 기능 연결
-                    tooltip: "로그아웃",
-                    icon: const Icon(
-                      Icons.logout,
                       color: Colors.white,
                       size: 28,
                     ),
@@ -479,16 +453,49 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.kitchen,
                       title: '보유 재료',
                       value: countText,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const InventoryScreen(
+                              sortType: InventorySortType.registeredAt,
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
               ),
               const SizedBox(width: 16),
+
               Expanded(
-                child: _buildSummaryCard(
-                  icon: Icons.trending_down,
-                  title: '이번 달 절약',
-                  value: '32%',
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user!.uid)
+                      .snapshots(), // 유저 문서 전체를 구독
+                  builder: (context, snapshot) {
+                    String savedText = '0원';
+
+                    if (snapshot.hasData &&
+                        snapshot.data != null &&
+                        snapshot.data!.data() != null) {
+                      final data =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      // savedMoney 필드를 가져오고, 없으면 totalSavedAmount, 그것도 없으면 0
+                      final int amount =
+                          data['savedMoney'] ?? data['totalSavedAmount'] ?? 0;
+                      // 숫자 포맷팅 (예: 15,000원)
+                      savedText = '${NumberFormat('#,###').format(amount)}원';
+                    }
+
+                    return _buildSummaryCard(
+                      icon: Icons.savings_outlined, // 아이콘 변경 (돼지저금통 느낌)
+                      title: '이번 달 아낀 돈', // 타이틀 변경
+                      value: savedText,
+                    );
+                  },
                 ),
               ),
             ],
@@ -531,32 +538,36 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String title,
     required String value,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Colors.white, size: 28),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Colors.white, size: 28),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

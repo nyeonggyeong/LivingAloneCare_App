@@ -76,7 +76,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
           onPressed: () {
             setState(() {
               _selectedTabIndex = isGroupBuy ? 1 : 0; // 닫을 때 원래 탭으로 돌아가기
-              isGroupBuy ? _clearGroupBuyData() : _clearWriteData(); // 데이터 초기화 분기
+              isGroupBuy
+                  ? _clearGroupBuyData()
+                  : _clearWriteData(); // 데이터 초기화 분기
             });
           },
         ),
@@ -87,21 +89,23 @@ class _CommunityScreenState extends State<CommunityScreen> {
         actions: [
           TextButton(
             // 저장 함수 분기: 공동구매면 _saveGroupBuyPost, 아니면 _savePost 호출
-            onPressed: _isUploading 
-              ? null 
-              : isGroupBuy ? _saveGroupBuyPost : _savePost, 
+            onPressed: _isUploading
+                ? null
+                : isGroupBuy
+                ? _saveGroupBuyPost
+                : _savePost,
             child: _isUploading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text(
-                  '완료',
-                  style: TextStyle(
-                    color: Color(0xFFFFA36A),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    '완료',
+                    style: TextStyle(
+                      color: Color(0xFFFFA36A),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
           ),
@@ -113,16 +117,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 공동구매 모드일 경우, 추가 필드 표시
-            if (isGroupBuy) ...[
-              _buildGroupBuyFields(),
-              const Divider(),
-            ],
+            if (isGroupBuy) ...[_buildGroupBuyFields(), const Divider()],
 
             TextField(
               controller: _contentController,
               maxLines: isGroupBuy ? 4 : 8, // 공동구매는 내용이 짧을 수 있게 maxLines 조절
               decoration: InputDecoration(
-                hintText: isGroupBuy ? '상품 제목과 상세 설명을 입력하세요.' : '자취 꿀팁이나 요리 노하우를 공유해보세요!',
+                hintText: isGroupBuy
+                    ? '상품 제목과 상세 설명을 입력하세요.'
+                    : '자취 꿀팁이나 요리 노하우를 공유해보세요!',
                 border: InputBorder.none,
               ),
             ),
@@ -142,9 +145,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       ),
                       onSubmitted: (_) => _addTag(),
                     ),
-                 ),
+                  ),
                   IconButton(
-                    icon: const Icon(Icons.add_circle, color: Color(0xFF99D279)),
+                    icon: const Icon(
+                      Icons.add_circle,
+                      color: Color(0xFF99D279),
+                    ),
                     onPressed: _addTag,
                   ),
                 ],
@@ -345,9 +351,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // 댓글 목록을 표시하는 부분
-                Container(
+                SizedBox(
                   // 화면 높이의 40%를 댓글 목록 공간으로 사용
-                  height: MediaQuery.of(context).size.height * 0.4, 
+                  height: MediaQuery.of(context).size.height * 0.4,
                   child: _buildCommentList(postId),
                 ),
 
@@ -360,7 +366,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
                         decoration: const InputDecoration(
                           hintText: '댓글을 입력하세요...',
                           border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),
@@ -379,7 +388,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     ).whenComplete(() {
       // BottomSheet가 닫힐 때 컨트롤러를 초기화
       _commentController.clear();
-    });  
+    });
   }
 
   Widget _buildListContent() {
@@ -439,11 +448,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 margin: const EdgeInsets.only(bottom: 15),
                 decoration: BoxDecoration(
                   color: Colors.lightGreen[50],
-                  borderRadius: BorderRadius.circular(15)
+                  borderRadius: BorderRadius.circular(15),
                 ),
                 child: Text(
-                  '공동구매 상품: ${data['title'] ?? '제목 없음'}', 
-                  style: const TextStyle(fontWeight: FontWeight.bold)
+                  '공동구매 상품: ${data['title'] ?? '제목 없음'}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               );
             },
@@ -487,64 +496,82 @@ class _CommunityScreenState extends State<CommunityScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-                // 게시물 상단: 사용자 정보 및 삭제/공유 메뉴
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.grey[200],
-                      backgroundImage: profileImage.isNotEmpty
-                          ? NetworkImage(profileImage)
-                          : null,
-                      child: profileImage.isEmpty
-                          ? const Icon(Icons.person, color: Colors.grey)
-                          : null,
+          // 게시물 상단: 사용자 정보 및 삭제/공유 메뉴
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.grey[200],
+                backgroundImage: profileImage.isNotEmpty
+                    ? NetworkImage(profileImage)
+                    : null,
+                child: profileImage.isEmpty
+                    ? const Icon(Icons.person, color: Colors.grey)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nickname,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
                     ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          nickname,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        Text(
-                          timeAgo,
-                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  ),
+                  Text(
+                    timeAgo,
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  ),
+                ],
+              ),
+              const Spacer(),
+
+              // 삭제 메뉴 또는 공유 아이콘 표시
+              if (isAuthor)
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _confirmAndDeletePost(
+                        postId,
+                        post['imageUrls'] as List<dynamic>?,
+                      ); // 삭제 함수 호출
+                    }
+                  },
+                  itemBuilder: (BuildContext context) =>
+                      <PopupMenuEntry<String>>[
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text(
+                            '삭제하기',
+                            style: TextStyle(color: Colors.red),
+                          ),
                         ),
                       ],
-                    ),
-                    const Spacer(),
+                  icon: const Icon(
+                    Icons.more_vert,
+                    color: Colors.grey,
+                    size: 20,
+                  ),
+                )
+              else
+                IconButton(
+                  icon: const Icon(
+                    Icons.share_outlined,
+                    color: Colors.grey,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    // 게시물 내용의 일부를 content 변수로 전달
+                    // post['content']가 null일 경우 빈 문자열을 전달하도록 처리
+                    _sharePost(postId, post['content'] ?? '');
+                  },
+                ),
+            ],
+          ),
+          // 게시물 상단 끝
 
-                    // 삭제 메뉴 또는 공유 아이콘 표시
-                    if (isAuthor) 
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'delete') {
-                            _confirmAndDeletePost(postId, post['imageUrls'] as List<dynamic>?); // 삭제 함수 호출
-                          }
-                        },
-                        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                          const PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('삭제하기', style: TextStyle(color: Colors.red)),
-                          ),
-                        ],
-                        icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
-                      )
-                    else 
-                      IconButton(
-                        icon: const Icon(Icons.share_outlined, color: Colors.grey, size: 20),
-                        onPressed: () {
-                          // 게시물 내용의 일부를 content 변수로 전달
-                          // post['content']가 null일 경우 빈 문자열을 전달하도록 처리
-                          _sharePost(postId, post['content'] ?? ''); 
-                        },
-                      ),
-                  ],
-                ),     
-                // 게시물 상단 끝
-          
           // 게시물 내용
           const SizedBox(height: 16), // 사용자 정보와 내용 사이 간격 추가
           Text(
@@ -615,29 +642,32 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 icon: Icon(
                   // post['likes']는 좋아요를 누른 사용자 UID 리스트
                   // 현재 로그인된 사용자(user?.uid)가 이 리스트에 포함되어 있는지 확인
-                  post['likes'] != null && (post['likes'] as List).contains(user?.uid)
-                    ? Icons.favorite // 좋아요를 누른 상태
-                    : Icons.favorite_border, // 좋아요를 누르지 않은 상태
-                  color: post['likes'] != null && (post['likes'] as List).contains(user?.uid)
-                    ? Colors.redAccent // 누르면 빨간색
-                    : Colors.grey[600], // 안 누르면 회색
+                  post['likes'] != null &&
+                          (post['likes'] as List).contains(user?.uid)
+                      ? Icons
+                            .favorite // 좋아요를 누른 상태
+                      : Icons.favorite_border, // 좋아요를 누르지 않은 상태
+                  color:
+                      post['likes'] != null &&
+                          (post['likes'] as List).contains(user?.uid)
+                      ? Colors
+                            .redAccent // 누르면 빨간색
+                      : Colors.grey[600], // 안 누르면 회색
                   size: 22,
                 ),
                 onPressed: () {
                   // user는 _buildPostCard 상단에서 FirebaseAuth.instance.currentUser로 가져온 변수
                   if (user == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('로그인이 필요합니다.')));
+                      const SnackBar(content: Text('로그인이 필요합니다.')),
+                    );
                     return;
                   }
                   // 좋아요 토글 함수 호출
-                  _toggleLike(
-                    postId,
-                    post['likes'] as List<dynamic>? ?? [],
-                  );
+                  _toggleLike(postId, post['likes'] as List<dynamic>? ?? []);
                 },
               ),
-              
+
               const SizedBox(width: 6),
               // 좋아요 카운트 (likes 리스트의 길이를 사용)
               Text(
@@ -645,10 +675,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
               const SizedBox(width: 20),
-    
+
               // 댓글 버튼으로 변경
               IconButton(
-                padding: EdgeInsets.zero, 
+                padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
                 icon: Icon(
                   Icons.chat_bubble_outline,
@@ -668,9 +698,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
               ),
             ],
           ),
-        ], 
+        ],
       ),
-    ); 
+    );
   }
 
   String _formatTimestamp(Timestamp timestamp) {
@@ -683,7 +713,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
     return DateFormat('yyyy.MM.dd').format(date);
   }
 
-  Future<void> _confirmAndDeletePost(String postId, List<dynamic>? imageUrls) async {
+  Future<void> _confirmAndDeletePost(
+    String postId,
+    List<dynamic>? imageUrls,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -707,25 +740,28 @@ class _CommunityScreenState extends State<CommunityScreen> {
     if (confirmed == true) {
       try {
         // 1. Firestore 문서 삭제
-        await FirebaseFirestore.instance.collection('posts').doc(postId).delete();
-        
+        await FirebaseFirestore.instance
+            .collection('posts')
+            .doc(postId)
+            .delete();
+
         // 2. Storage 이미지 삭제 (Storage URL이 있는 경우)
         if (imageUrls != null && imageUrls.isNotEmpty) {
           for (var url in imageUrls) {
-            await FirebaseStorage.instance.refFromURL(url.toString()).delete(); 
+            await FirebaseStorage.instance.refFromURL(url.toString()).delete();
           }
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('게시글이 삭제되었습니다.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('게시글이 삭제되었습니다.')));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('삭제 실패: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
         }
       }
     }
@@ -754,9 +790,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('좋아요 업데이트 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('좋아요 업데이트 실패: $e')));
       }
     }
   }
@@ -768,7 +804,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
       }
       return;
     }
@@ -777,11 +815,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
     String profileImage = user.photoURL ?? '';
 
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       if (userDoc.exists) {
         final data = userDoc.data() as Map<String, dynamic>;
         nickname = data['nickname'] ?? data['name'] ?? '익명';
-        if (data['profileImage'] != null && data['profileImage'].toString().isNotEmpty) {
+        if (data['profileImage'] != null &&
+            data['profileImage'].toString().isNotEmpty) {
           profileImage = data['profileImage'];
         }
       }
@@ -792,7 +834,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     try {
       // 댓글 문서 추가 (Sub-collection)
       await FirebaseFirestore.instance
-         .collection('posts')
+          .collection('posts')
           .doc(postId)
           .collection('comments')
           .add({
@@ -806,19 +848,19 @@ class _CommunityScreenState extends State<CommunityScreen> {
           });
 
       // 상위 게시글의 commentCount 필드 1 증가
-      await FirebaseFirestore.instance
-          .collection('posts')
-          .doc(postId)
-          .update({'commentCount': FieldValue.increment(1)});
-        
+      await FirebaseFirestore.instance.collection('posts').doc(postId).update({
+        'commentCount': FieldValue.increment(1),
+      });
+
       if (mounted) {
         _commentController.clear();
         // 댓글 목록이 자동으로 업데이트되므로, UI 갱신은 StreamBuilder에 맡김.
       }
-
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('댓글 작성 실패: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('댓글 작성 실패: $e')));
       }
     }
   }
@@ -826,8 +868,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Future<void> _sharePost(String postId, String content) async {
     // 실제 앱에서는 'https://yourdomain.com/posts/$postId'와 같은
     // 실제 웹 링크를 포함하여 공유하는 것이 일반적
-    final String shareText = 
-        '${content}\n\n[커뮤니티에서 이 게시물 보기]\nhttps://yourapplink.com/post/$postId';
+    final String shareText =
+        '$content\n\n[커뮤니티에서 이 게시물 보기]\nhttps://yourapplink.com/post/$postId';
 
     try {
       await Share.share(
@@ -836,9 +878,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
       );
     } catch (e) {
       if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('공유 실패: $e')),
-          );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('공유 실패: $e')));
       }
     }
   }
@@ -848,35 +890,37 @@ class _CommunityScreenState extends State<CommunityScreen> {
       // 댓글 문서 삭제 (Sub-collection)
       await FirebaseFirestore.instance
           .collection('posts')
-         .doc(postId)
+          .doc(postId)
           .collection('comments')
           .doc(commentId)
           .delete();
 
       // 상위 게시글의 commentCount 필드 1 감소
-      await FirebaseFirestore.instance
-          .collection('posts')
-          .doc(postId)
-          .update({'commentCount': FieldValue.increment(-1)});
+      await FirebaseFirestore.instance.collection('posts').doc(postId).update({
+        'commentCount': FieldValue.increment(-1),
+      });
 
       // 성공 피드백
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('댓글이 삭제되었습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('댓글이 삭제되었습니다.')));
       }
     } catch (e) {
       print('댓글 삭제 실패: $e');
       // 실패 피드백
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('댓글 삭제에 실패했습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('댓글 삭제에 실패했습니다.')));
       }
     }
   }
 
-  Future<void> _showDeleteConfirmationDialog(String postId, String commentId) async {
+  Future<void> _showDeleteConfirmationDialog(
+    String postId,
+    String commentId,
+  ) async {
     return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
@@ -901,31 +945,35 @@ class _CommunityScreenState extends State<CommunityScreen> {
         );
       },
     );
-    
   }
 
   Future<void> _saveGroupBuyPost() async {
-    if (_contentController.text.trim().isEmpty || 
-        _priceController.text.isEmpty || 
+    if (_contentController.text.trim().isEmpty ||
+        _priceController.text.isEmpty ||
         _quantityController.text.isEmpty ||
         _selectedDeadline == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('모든 필수 항목을 입력해주세요.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('모든 필수 항목을 입력해주세요.')));
       return;
     }
-  
+
     // 가격과 수량 파싱
     final int? price = int.tryParse(_priceController.text);
     final int? quantity = int.tryParse(_quantityController.text);
 
     if (price == null || quantity == null || price <= 0 || quantity <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('가격과 목표 수량을 올바르게 입력해주세요.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('가격과 목표 수량을 올바르게 입력해주세요.')));
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) { /* ... (로그인 필요 스낵바) ... */ return; }
+    if (user == null) {
+      /* ... (로그인 필요 스낵바) ... */
+      return;
+    }
 
     setState(() => _isUploading = true);
 
@@ -936,13 +984,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
       try {
         final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+            .collection('users')
+            .doc(user.uid)
+            .get();
         if (userDoc.exists) {
           final data = userDoc.data() as Map<String, dynamic>;
           nickname = data['nickname'] ?? data['name'] ?? '익명';
-          if (data['profileImage'] != null && data['profileImage'].toString().isNotEmpty) {
+          if (data['profileImage'] != null &&
+              data['profileImage'].toString().isNotEmpty) {
             profileImage = data['profileImage'];
           }
         }
@@ -985,9 +1034,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
         _selectedTabIndex = 1; // 저장 후 공동구매 탭으로 이동
         _clearGroupBuyData(); // 데이터 초기화
       });
-    
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('공동구매 등록 실패: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('공동구매 등록 실패: $e')));
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -1007,13 +1057,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Future<void> _selectDeadline() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDeadline ?? DateTime.now().add(const Duration(days: 1)),
+      initialDate:
+          _selectedDeadline ?? DateTime.now().add(const Duration(days: 1)),
       firstDate: DateTime.now(),
-     lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null && picked != _selectedDeadline) {
       setState(() {
-       _selectedDeadline = picked;
+        _selectedDeadline = picked;
       });
     }
   }
@@ -1048,10 +1099,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
         const Text('마감 기한', style: TextStyle(fontWeight: FontWeight.bold)),
         ListTile(
           title: Text(
-            _selectedDeadline == null 
-                ? '마감 기한을 선택해주세요' 
+            _selectedDeadline == null
+                ? '마감 기한을 선택해주세요'
                 : DateFormat('yyyy. MM. dd').format(_selectedDeadline!),
-            style: TextStyle(color: _selectedDeadline == null ? Colors.grey : Colors.black),
+            style: TextStyle(
+              color: _selectedDeadline == null ? Colors.grey : Colors.black,
+            ),
           ),
           trailing: const Icon(Icons.calendar_today),
           onTap: _selectDeadline,
@@ -1145,12 +1198,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
           .orderBy('createdAt', descending: false) // 최신 댓글이 아래로 오도록 설정
           .snapshots(),
       builder: (context, snapshot) {
-       if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
 
         final docs = snapshot.data!.docs;
-      
+
         if (docs.isEmpty) {
-          return const Center(child: Text("첫 댓글을 달아주세요!", style: TextStyle(color: Colors.grey)));
+          return const Center(
+            child: Text("첫 댓글을 달아주세요!", style: TextStyle(color: Colors.grey)),
+          );
         }
 
         return ListView.builder(
@@ -1168,7 +1224,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   // 개별 댓글 항목 위젯
-  Widget _buildCommentItem(Map<String, dynamic> comment, String postId, String commentId) {
+  Widget _buildCommentItem(
+    Map<String, dynamic> comment,
+    String postId,
+    String commentId,
+  ) {
     final author = comment['author'] as Map<String, dynamic>? ?? {};
     final user = FirebaseAuth.instance.currentUser; // 현재 로그인된 사용자
     final nickname = author['nickname'] ?? '익명';
@@ -1187,8 +1247,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundImage: profileImage.isNotEmpty ? NetworkImage(profileImage) : null,
-            child: profileImage.isEmpty ? const Icon(Icons.person, size: 16) : null,
+            backgroundImage: profileImage.isNotEmpty
+                ? NetworkImage(profileImage)
+                : null,
+            child: profileImage.isEmpty
+                ? const Icon(Icons.person, size: 16)
+                : null,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1199,7 +1263,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   children: [
                     Text(
                       nickname,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -1207,7 +1274,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       style: TextStyle(color: Colors.grey[500], fontSize: 11),
                     ),
                     const Spacer(), // 닉네임과 메뉴 버튼 사이에 공간
-
                     // 삭제 버튼 표시 : 작성자 본인일 경우에만 표시
                     if (isAuthor)
                       InkWell(
@@ -1215,12 +1281,19 @@ class _CommunityScreenState extends State<CommunityScreen> {
                           // 삭제 다이얼로그 호출
                           _showDeleteConfirmationDialog(postId, commentId);
                         },
-                        child: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
+                        child: const Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: Colors.redAccent,
+                        ),
                       ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(comment['content'] ?? '', style: const TextStyle(fontSize: 14)),
+                Text(
+                  comment['content'] ?? '',
+                  style: const TextStyle(fontSize: 14),
+                ),
               ],
             ),
           ),
