@@ -13,7 +13,7 @@
     </queries>
 
     <application
-        android:label="livingalonecare_app"
+        android:label="LivingAloneCare"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
         android:enableOnBackInvokedCallback="true">
