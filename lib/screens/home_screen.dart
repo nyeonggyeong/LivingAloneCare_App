@@ -12,19 +12,22 @@ import 'package:livingalonecare_app/screens/notification_screen.dart';
 import 'package:livingalonecare_app/screens/community_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialIndex;
+
+  const HomeScreen({super.key, this.initialIndex = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
   final User? user = FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialIndex;
     _setupFCM();
   }
 

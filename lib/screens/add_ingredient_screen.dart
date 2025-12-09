@@ -39,7 +39,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
   final List<String> _storageOptions = ['냉장', '냉동', '실온'];
   final List<String> _units = ['개', 'g', 'kg', 'ml', 'L', '봉', '캔', '병'];
 
-  int _selectedIndex = 2;
+  final int _selectedIndex = 2;
 
   // 이미지 선택 및 AI 분석 시작
   Future<void> _pickImage(ImageSource source) async {
@@ -240,13 +240,10 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
-    setState(() => _selectedIndex = index);
-    if (index == 0) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
-    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => HomeScreen(initialIndex: index)),
+    );
   }
 
   @override
