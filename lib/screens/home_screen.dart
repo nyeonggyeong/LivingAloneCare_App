@@ -6,7 +6,6 @@ import 'package:livingalonecare_app/screens/add_ingredient_screen.dart';
 import 'package:livingalonecare_app/screens/inventory_screen.dart';
 import 'package:livingalonecare_app/screens/my_page_screen.dart';
 import 'package:livingalonecare_app/screens/recipe_recommendation_screen.dart';
-import 'package:livingalonecare_app/screens/login_screen.dart';
 import 'package:livingalonecare_app/data/ingredient_data.dart';
 import 'package:livingalonecare_app/screens/notification_screen.dart';
 import 'package:livingalonecare_app/screens/community_screen.dart';
@@ -119,24 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     });
-  }
-
-  // 로그아웃 함수
-  Future<void> _signOut() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      print("로그아웃 오류: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('로그아웃 중 오류가 발생했습니다.')));
-    }
   }
 
   Future<void> _deleteIngredient(String docId) async {
@@ -445,15 +426,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     icon: const Icon(
                       Icons.notifications,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _signOut, // 로그아웃 기능 연결
-                    tooltip: "로그아웃",
-                    icon: const Icon(
-                      Icons.logout,
                       color: Colors.white,
                       size: 28,
                     ),
