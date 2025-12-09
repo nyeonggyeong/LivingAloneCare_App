@@ -591,7 +591,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                                 const SizedBox(height: 12),
                                 _buildTipItem('밝은 곳에서 촬영하세요'),
                                 _buildTipItem('재료가 잘 보이도록 가까이 찍으세요'),
-                                _buildTipItem('한 번에 최대 5개까지 인식 가능해요'),
+                                _buildTipItem('AI도 실수할 수 있어요!'),
                               ],
                             ),
                           ),
