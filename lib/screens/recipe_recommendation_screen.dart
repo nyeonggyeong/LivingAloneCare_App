@@ -464,7 +464,7 @@ class _RecipeListCardState extends State<RecipeListCard> {
   String _calculateLevel(int count) {
     if (count >= 50) return "요리 마스터";
     if (count >= 30) return "고수 요리사";
-    if (count >= 10) return "중수 요리사"; // 10개 이상이면 중수
+    if (count >= 10) return "중수 요리사";
     return "초보 요리사";
   }
 
@@ -472,19 +472,37 @@ class _RecipeListCardState extends State<RecipeListCard> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final String docId = widget.recipe['id'] ?? widget.recipe['name'];
+    final String? widgetId = widget.recipe['id'];
+    final String name = widget.recipe['name'];
 
     try {
-      final doc = await FirebaseFirestore.instance
+      final userRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
-          .collection('saved_recipes')
-          .doc(docId)
-          .get();
+          .collection('saved_recipes');
+
+      bool exists = false;
+
+      if (widgetId != null && widgetId.isNotEmpty) {
+        final doc = await userRef.doc(widgetId).get();
+        if (doc.exists) {
+          exists = true;
+        }
+      }
+      if (!exists) {
+        final query = await userRef
+            .where('name', isEqualTo: name)
+            .limit(1)
+            .get();
+
+        if (query.docs.isNotEmpty) {
+          exists = true;
+        }
+      }
 
       if (mounted) {
         setState(() {
-          _isSaved = doc.exists;
+          _isSaved = exists;
         });
       }
     } catch (e) {
@@ -504,31 +522,53 @@ class _RecipeListCardState extends State<RecipeListCard> {
     if (_isProcessing) return;
     setState(() => _isProcessing = true);
 
-    final String docId = widget.recipe['id'] ?? widget.recipe['name'];
-
-    final userRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid);
-    final myRecipeRef = userRef.collection('saved_recipes').doc(docId);
-
-    final publicRecipeRef = FirebaseFirestore.instance
-        .collection('recipes')
-        .doc(docId);
-
     try {
-      if (_isSaved) {
-        await myRecipeRef.delete();
+      // 1. 문서 ID 결정 로직 수정
+      // UI에서 넘겨받은 id가 있으면 쓰고, 없으면 이름으로 DB를 조회해서 찾음
+      String targetDocId = widget.recipe['id']?.toString() ?? '';
+      final String recipeName = widget.recipe['name'];
 
+      // ID가 비어있다면(AI 추천 등) DB에서 이름으로 검색 시도
+      if (targetDocId.isEmpty) {
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('recipes')
+            .where('name', isEqualTo: recipeName)
+            .limit(1)
+            .get();
+
+        if (querySnapshot.docs.isNotEmpty) {
+          // 이미 존재하는 레시피라면 그 ID를 사용 (예: "236")
+          targetDocId = querySnapshot.docs.first.id;
+        } else {
+          // 진짜 새로운 레시피라면 이름을 ID로 사용 (혹은 UUID 생성)
+          targetDocId = recipeName;
+        }
+      }
+
+      // ---------------------------------------------------------
+      // 이후 로직은 targetDocId를 사용하여 진행
+      // ---------------------------------------------------------
+
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      final myRecipeRef = userRef.collection('saved_recipes').doc(targetDocId);
+      final publicRecipeRef = FirebaseFirestore.instance
+          .collection('recipes')
+          .doc(targetDocId);
+
+      if (_isSaved) {
+        // --- 저장 취소 로직 ---
+        await myRecipeRef.delete();
         try {
-          await publicRecipeRef.update({
-            'likeCount': FieldValue.increment(-1),
-          }); // 카운트 감소
+          await publicRecipeRef.update({'likeCount': FieldValue.increment(-1)});
         } catch (e) {
           print("원본 레시피 카운트 감소 실패 (무시 가능): $e");
         }
       } else {
+        // --- 저장 로직 ---
         final saveData = {
-          'id': docId,
+          'id': targetDocId, // 확정된 ID 저장
           'name': widget.recipe['name'],
           'imageUrl': widget.recipe['imageUrl'],
           'cookingTime': widget.recipe['cookingTime'],
@@ -540,13 +580,13 @@ class _RecipeListCardState extends State<RecipeListCard> {
         };
         await myRecipeRef.set(saveData);
 
+        // 공용 레시피 DB 업데이트 (기존 문서는 덮어쓰지 않고 병합)
         await publicRecipeRef.set({
           'name': widget.recipe['name'],
           'imageUrl': widget.recipe['imageUrl'],
           'cookingTime': widget.recipe['cookingTime'],
           'difficulty': widget.recipe['difficulty'],
           'likeCount': FieldValue.increment(1),
-
           'requiredIngredients':
               widget.recipe['requiredIngredients'] ??
               widget.recipe['ingredients'] ??
@@ -555,6 +595,7 @@ class _RecipeListCardState extends State<RecipeListCard> {
         }, SetOptions(merge: true));
       }
 
+      // 유저 레벨 업데이트 등 나머지 로직 유지...
       final snapshot = await userRef.collection('saved_recipes').get();
       final int actualCount = snapshot.docs.length;
       final String newLevel = _calculateLevel(actualCount);
