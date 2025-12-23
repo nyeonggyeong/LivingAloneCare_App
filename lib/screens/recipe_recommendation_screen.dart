@@ -512,10 +512,18 @@ class _RecipeListCardState extends State<RecipeListCard> {
 
   Future<void> _toggleSave() async {
     final user = FirebaseAuth.instance.currentUser;
+
+    // 1. 로그인 안 된 경우 알림 스타일 수정
     if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('로그인이 필요합니다.'),
+          behavior: SnackBarBehavior.floating, // 떠있는 스타일
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10), // 둥근 모서리
+          ),
+        ),
+      );
       return;
     }
 
@@ -523,12 +531,10 @@ class _RecipeListCardState extends State<RecipeListCard> {
     setState(() => _isProcessing = true);
 
     try {
-      // 1. 문서 ID 결정 로직 수정
-      // UI에서 넘겨받은 id가 있으면 쓰고, 없으면 이름으로 DB를 조회해서 찾음
+      // 1. 문서 ID 결정 로직
       String targetDocId = widget.recipe['id']?.toString() ?? '';
       final String recipeName = widget.recipe['name'];
 
-      // ID가 비어있다면(AI 추천 등) DB에서 이름으로 검색 시도
       if (targetDocId.isEmpty) {
         final querySnapshot = await FirebaseFirestore.instance
             .collection('recipes')
@@ -537,17 +543,11 @@ class _RecipeListCardState extends State<RecipeListCard> {
             .get();
 
         if (querySnapshot.docs.isNotEmpty) {
-          // 이미 존재하는 레시피라면 그 ID를 사용 (예: "236")
           targetDocId = querySnapshot.docs.first.id;
         } else {
-          // 진짜 새로운 레시피라면 이름을 ID로 사용 (혹은 UUID 생성)
           targetDocId = recipeName;
         }
       }
-
-      // ---------------------------------------------------------
-      // 이후 로직은 targetDocId를 사용하여 진행
-      // ---------------------------------------------------------
 
       final userRef = FirebaseFirestore.instance
           .collection('users')
@@ -568,7 +568,7 @@ class _RecipeListCardState extends State<RecipeListCard> {
       } else {
         // --- 저장 로직 ---
         final saveData = {
-          'id': targetDocId, // 확정된 ID 저장
+          'id': targetDocId,
           'name': widget.recipe['name'],
           'imageUrl': widget.recipe['imageUrl'],
           'cookingTime': widget.recipe['cookingTime'],
@@ -580,7 +580,6 @@ class _RecipeListCardState extends State<RecipeListCard> {
         };
         await myRecipeRef.set(saveData);
 
-        // 공용 레시피 DB 업데이트 (기존 문서는 덮어쓰지 않고 병합)
         await publicRecipeRef.set({
           'name': widget.recipe['name'],
           'imageUrl': widget.recipe['imageUrl'],
@@ -595,7 +594,7 @@ class _RecipeListCardState extends State<RecipeListCard> {
         }, SetOptions(merge: true));
       }
 
-      // 유저 레벨 업데이트 등 나머지 로직 유지...
+      // 유저 레벨 업데이트
       final snapshot = await userRef.collection('saved_recipes').get();
       final int actualCount = snapshot.docs.length;
       final String newLevel = _calculateLevel(actualCount);
@@ -609,20 +608,42 @@ class _RecipeListCardState extends State<RecipeListCard> {
         setState(() {
           _isSaved = !_isSaved;
         });
-        String message = _isSaved ? '나만의 레시피북에 저장되었어요! 🧡' : '저장이 취소되었습니다.';
+
+        String message = _isSaved ? '나만의 레시피북에 저장! 🧡' : '저장이 취소되었습니다.';
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(message),
-            duration: const Duration(seconds: 1),
+            content: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isSaved ? Icons.check_circle : Icons.info_outline,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFFFFA36A).withOpacity(0.95),
+            behavior: SnackBarBehavior.floating,
+            elevation: 0,
+            shape: const StadiumBorder(),
+
+            margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            duration: const Duration(seconds: 2),
           ),
         );
-      }
-    } catch (e) {
-      print("저장 오류: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("오류가 발생했습니다: $e")));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);

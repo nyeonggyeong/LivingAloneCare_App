@@ -53,70 +53,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
-        ScaffoldMessenger.of(context).clearMaterialBanners();
-
-        ScaffoldMessenger.of(context).showMaterialBanner(
-          MaterialBanner(
-            backgroundColor: Colors.white,
-            elevation: 5,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFA36A).withOpacity(0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.notifications_active_rounded,
-                color: Color(0xFFFFA36A),
-                size: 28,
-              ),
-            ),
-
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  message.notification!.title ?? '알림',
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  message.notification!.body ?? '',
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-
-            actions: [
-              TextButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFFFA36A), // 버튼 글자색
-                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                child: const Text('확인'),
-              ),
-            ],
-          ),
+        _showTopNotification(
+          context,
+          message.notification!.title ?? '알림',
+          message.notification!.body ?? '',
         );
-
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-          }
-        });
       }
     });
   }
@@ -131,14 +72,23 @@ class _HomeScreenState extends State<HomeScreen> {
           .delete();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('재료가 삭제되었습니다 🗑️')));
+
+      _showSnackBar('재료가 삭제되었습니다 🗑️');
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('삭제 중 오류 발생: $e')));
+      _showSnackBar('삭제 중 오류 발생: $e', isError: true);
     }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+        backgroundColor: isError ? Colors.red[400] : null,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _showDeleteDialog(String docId, String name) {
@@ -177,6 +127,107 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _showTopNotification(BuildContext context, String title, String body) {
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 10, // 상태바 아래 여백
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16), // 둥근 모서리
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // 아이콘
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFA36A).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.notifications_active_rounded,
+                    color: Color(0xFFFFA36A),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // 텍스트 내용
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        body,
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                // 닫기 버튼 (텍스트 혹은 X아이콘)
+                TextButton(
+                  onPressed: () {
+                    overlayEntry.remove();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFFFFA36A),
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(50, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    '확인',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // 화면에 오버레이 삽입
+    Overlay.of(context).insert(overlayEntry);
+
+    // 3초 후 자동으로 사라짐
+    Future.delayed(const Duration(seconds: 3), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
+  }
+
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 0:
@@ -203,92 +254,107 @@ class _HomeScreenState extends State<HomeScreen> {
       resizeToAvoidBottomInset: false,
       body: _buildBody(),
 
-      floatingActionButton: Container(
-        width: 70,
-        height: 90,
-        margin: const EdgeInsets.only(top: 35),
-        child: Column(
-          children: [
-            Container(
-              width: 65,
-              height: 65,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFE8C889), Color(0xFFD2AC6E)],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFD2AC6E).withOpacity(0.4),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
+      floatingActionButton: IgnorePointer(
+        ignoring: false,
+        child: Container(
+          width: 70,
+          height: 90,
+          margin: const EdgeInsets.only(top: 35),
+          child: Column(
+            children: [
+              Container(
+                width: 65,
+                height: 65,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFE8C889), Color(0xFFD2AC6E)],
                   ),
-                ],
-              ),
-              child: FloatingActionButton(
-                onPressed: () => _onItemTapped(2),
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                shape: const CircleBorder(),
-                child: const Icon(
-                  Icons.camera_alt,
-                  size: 28,
-                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFD2AC6E).withOpacity(0.4),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: FloatingActionButton(
+                  onPressed: () => _onItemTapped(2),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  shape: const CircleBorder(),
+                  child: const Icon(
+                    Icons.camera_alt,
+                    size: 28,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '등록',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFFFA36A),
+              const SizedBox(height: 4),
+              const Text(
+                '등록',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFFFA36A),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-      bottomNavigationBar: BottomAppBar(
-        color: Colors.white,
-        elevation: 10,
-        height: 70,
-        padding: EdgeInsets.zero,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildTabItem(
-              index: 0,
-              icon: Icons.home_outlined,
-              activeIcon: Icons.home,
-              label: '홈',
-            ),
-            const SizedBox(width: 45),
-            _buildTabItem(
-              index: 1,
-              icon: Icons.menu_book_outlined,
-              activeIcon: Icons.menu_book,
-              label: '레시피',
-            ),
-            const SizedBox(width: 120),
-            _buildTabItem(
-              index: 3,
-              icon: Icons.people_outline,
-              activeIcon: Icons.people,
-              label: '커뮤니티',
-            ),
-            const SizedBox(width: 45),
-            _buildTabItem(
-              index: 4,
-              icon: Icons.person_outline,
-              activeIcon: Icons.person,
-              label: '마이',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
             ),
           ],
+        ),
+        child: BottomAppBar(
+          color: Colors.white,
+          elevation: 0,
+          height: 70,
+          padding: EdgeInsets.zero,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildTabItem(
+                index: 0,
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home,
+                label: '홈',
+              ),
+              const SizedBox(width: 45),
+              _buildTabItem(
+                index: 1,
+                icon: Icons.menu_book_outlined,
+                activeIcon: Icons.menu_book,
+                label: '레시피',
+              ),
+              const SizedBox(width: 120),
+              _buildTabItem(
+                index: 3,
+                icon: Icons.people_outline,
+                activeIcon: Icons.people,
+                label: '커뮤니티',
+              ),
+              const SizedBox(width: 45),
+              _buildTabItem(
+                index: 4,
+                icon: Icons.person_outline,
+                activeIcon: Icons.person,
+                label: '마이',
+              ),
+            ],
+          ),
         ),
       ),
     );

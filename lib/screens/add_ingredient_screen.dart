@@ -18,7 +18,6 @@ class AddIngredientScreen extends StatefulWidget {
 }
 
 class _AddIngredientScreenState extends State<AddIngredientScreen> {
-  final _formKey = GlobalKey<FormState>();
   final User? user = FirebaseAuth.instance.currentUser;
 
   final TextEditingController _nameController = TextEditingController();
@@ -41,7 +40,104 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
 
   final int _selectedIndex = 2;
 
-  // 이미지 선택 및 AI 분석 시작
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle,
+              color: isError ? Colors.white : const Color(0xFF558B2F),
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: isError ? Colors.white : const Color(0xFF33691E),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 110, left: 30, right: 30),
+        backgroundColor: isError
+            ? const Color(0xFFFF6B6B)
+            : const Color(0xFFDCEDC8),
+        elevation: 2,
+        shape: const StadiumBorder(),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFA36A),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      '확인',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
 
@@ -66,7 +162,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
     }
   }
 
-  // Cloud Functions로 이미지 전송 및 분석
   Future<void> _analyzeImage(File imageFile) async {
     setState(() => _isAnalyzing = true);
 
@@ -103,7 +198,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
         setState(() {
           _nameController.text = detectedName;
 
-          // 카테고리 자동 선택 (한글 기준)
           if (detectedName.contains('과일') ||
               detectedName.contains('사과') ||
               detectedName.contains('바나나')) {
@@ -126,21 +220,15 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
         });
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('AI가 "$detectedName"을(를) 찾았어요! 🤖')),
-        );
+        _showSnackBar('AI가 "$detectedName"을(를) 찾았어요! 🤖');
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('재료를 인식하지 못했어요. 직접 입력해주세요.')),
-        );
+        _showSnackBar('재료를 인식하지 못했어요. 직접 입력해주세요.');
       }
     } catch (e) {
       print('AI 분석 에러: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('AI 분석 중 오류가 발생했습니다.')));
+      _showSnackBar('AI 분석 중 오류가 발생했습니다.');
     } finally {
       if (mounted) {
         setState(() => _isAnalyzing = false);
@@ -186,7 +274,16 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
   Future<void> _saveIngredient() async {
     FocusScope.of(context).unfocus();
 
-    if (!_formKey.currentState!.validate()) return;
+    if (_nameController.text.trim().isEmpty) {
+      _showErrorDialog('재료 이름을 입력해주세요!');
+      return;
+    }
+
+    if (_quantityController.text.trim().isEmpty) {
+      _showErrorDialog('수량을 입력해주세요!');
+      return;
+    }
+
     if (user == null) return;
 
     setState(() => _isLoading = true);
@@ -209,7 +306,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
           .doc(user!.uid)
           .collection('inventory')
           .add({
-            'ingredientId': name, // 레시피 매칭용 ID
+            'ingredientId': name,
             'name': name,
             'category': _selectedCategory,
             'quantity': quantity,
@@ -221,21 +318,84 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
           });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('재료가 냉장고에 쏙! 들어갔어요 🥕')));
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+      _showSuccessDialog('재료가 냉장고에 쏙!\n들어갔어요 🥕');
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('오류가 발생했어요: $e')));
+      if (!mounted) return;
+      _showErrorDialog('오류가 발생했어요.\n다시 시도해주세요!');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF99D279),
+                  size: 50,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    height: 1.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context); // 팝업 닫기
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HomeScreen(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF99D279),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      '확인',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _onItemTapped(int index) {
@@ -257,6 +417,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           Container(
@@ -345,7 +506,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                             ),
                             child: Stack(
                               children: [
-                                // 사진 닫기 버튼
                                 Positioned(
                                   top: 10,
                                   right: 10,
@@ -353,7 +513,7 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
                                     onPressed: () {
                                       setState(() {
                                         _pickedImage = null;
-                                        _nameController.clear(); // 이름도 초기화
+                                        _nameController.clear();
                                       });
                                     },
                                     icon: const Icon(
@@ -613,7 +773,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
           ),
         ],
       ),
-      // 중앙 플로팅 버튼
       floatingActionButton: Container(
         width: 70,
         height: 90,
@@ -693,7 +852,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
 
   Widget _buildManualInputForm() {
     return Form(
-      key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -704,8 +862,6 @@ class _AddIngredientScreenState extends State<AddIngredientScreen> {
           TextFormField(
             controller: _nameController,
             decoration: _inputDecoration('예: 양파, 우유'),
-            validator: (value) =>
-                value == null || value.isEmpty ? '재료 이름을 입력해주세요' : null,
           ),
           const SizedBox(height: 20),
 

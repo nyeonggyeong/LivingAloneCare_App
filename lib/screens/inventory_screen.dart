@@ -30,7 +30,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (user == null) return;
 
     // 1. 유통기한 남은 일수 계산
-    int daysLeft = 100; // 기본값 넉넉하게
+    int daysLeft = 100;
     if (data['expiryDate'] != null) {
       final expiryDate = (data['expiryDate'] as Timestamp).toDate();
       final now = DateTime.now();
@@ -41,50 +41,83 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ).difference(DateTime(now.year, now.month, now.day)).inDays;
     }
 
-    // 2. 유통기한이 3일 이하로 남았거나 이미 지난 경우 (절약 기회!)
+    // 2. 유통기한이 3일 이하 or 지남
     if (daysLeft <= 3) {
-      bool? isConsumed = await showDialog<bool>(
+      bool? isConsumed = await showModalBottomSheet<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          title: const Text("🗑️ 재료 정리"),
-          content: Text(
-            "'${data['name']}'의 유통기한이 얼마 안 남았네요.\n요리에 사용해서 식비를 아꼈나요?",
-            style: const TextStyle(color: Colors.black87),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false), // 그냥 버림
-              child: const Text("그냥 버림", style: TextStyle(color: Colors.grey)),
+        backgroundColor: Colors.transparent,
+        builder: (context) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true), // 먹어서 아낌
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFA36A),
-              ),
-              child: const Text(
-                "네! 먹었어요",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
+                const Text(
+                  "유통기한 임박 🥕",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "'${data['name']}'을(를)\n요리에 사용했나요?",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 15, color: Colors.black54),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFA36A),
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    "네! 먹었어요",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text(
+                    "아니요, 그냥 버렸어요",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       );
 
-      // 3. 먹어서 아꼈다면 금액 입력 받기
+      // 3. 처리 로직
       if (isConsumed == true && mounted) {
+        // 먹음 -> 금액 입력 팝업 띄우기
         await _showPriceInputDialog(docId, data['name']);
       } else if (isConsumed == false) {
-        // 그냥 버림 -> 바로 삭제
-        await _deleteIngredient(docId);
+        // 그냥 버림 -> 바로 삭제 (이름 넘겨줌)
+        await _deleteIngredient(docId, data['name']);
       }
-      // null이면(팝업 밖 터치) 아무것도 안 함 (삭제 취소)
     } else {
-      // 4. 유통기한이 넉넉하면 그냥 삭제 여부만 확인
+      // 4. 유통기한 넉넉하면 일반 삭제 확인
       _showDeleteConfirmDialog(docId, data['name']);
     }
   }
@@ -93,61 +126,108 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Future<void> _showPriceInputDialog(String docId, String name) async {
     final TextEditingController priceController = TextEditingController();
 
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        title: const Text("💰 절약 금액 입력"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("'$name'의 대략적인 가격을 입력해주세요."),
-            const SizedBox(height: 16),
-            TextField(
-              controller: priceController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: "금액 (원)",
-                prefixText: "₩ ",
-                border: OutlineInputBorder(),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFFFFA36A)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("취소", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final int? amount = int.tryParse(priceController.text);
-              if (amount != null && amount > 0) {
-                // 1) 절약 내역 저장
-                await _saveMoneyToDB(amount, "$name (냉파 성공!)");
-                // 2) 재료 삭제
-                await _deleteIngredient(docId);
+                const Text(
+                  "절약 금액 입력 💰",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "'$name'으로 아낀 금액을 입력해주세요",
+                  style: const TextStyle(color: Colors.black54),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    prefixText: "₩ ",
+                    hintText: "예: 3000",
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () async {
+                    final int? amount = int.tryParse(
+                      priceController.text.trim(),
+                    );
+                    if (amount != null && amount > 0) {
+                      // 1. 절약 기록 저장
+                      await _saveMoneyToDB(amount, "$name (냉파 성공!)");
 
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("$amount원 절약 성공! 대단해요 🎉")),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFA36A),
+                      // 2. 재료 삭제 (절약 알림이 뜰 것이므로 삭제 알림은 false)
+                      await _deleteIngredient(docId, name, showMessage: false);
+
+                      if (mounted) {
+                        Navigator.pop(context);
+
+                        // ✅ [수정됨] 삭제 알림과 동일한 스타일/위치 적용
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("$amount원 절약했어요 🎉"),
+                            duration: const Duration(seconds: 2),
+                            behavior:
+                                SnackBarBehavior.floating, // 위치 동일하게 (떠있음)
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                10,
+                              ), // 모양 동일하게
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFA36A),
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    "저장하기",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
             ),
-            child: const Text("저장 및 삭제", style: TextStyle(color: Colors.white)),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -174,44 +254,109 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   // 재료 삭제 함수
-  Future<void> _deleteIngredient(String docId) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('inventory')
-        .doc(docId)
-        .delete();
+  Future<void> _deleteIngredient(
+    String docId,
+    String name, {
+    bool showMessage = true,
+  }) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('inventory')
+          .doc(docId)
+          .delete();
+
+      // 화면이 여전히 존재하는지 확인 후 스낵바 표시
+      if (mounted && showMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("'$name' 삭제 완료! 🗑️"),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("삭제 중 오류가 발생했습니다.")));
+      }
+    }
   }
 
-  // 일반 삭제 확인 (유통기한 넉넉할 때)
   void _showDeleteConfirmDialog(String docId, String name) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        title: const Text("재료 삭제"),
-        content: Text("'$name'을(를) 냉장고에서 뺄까요?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("취소", style: TextStyle(color: Colors.grey)),
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          TextButton(
-            onPressed: () {
-              _deleteIngredient(docId);
-              Navigator.pop(context);
-            },
-            child: const Text("삭제", style: TextStyle(color: Colors.red)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                "'$name'을(를)\n냉장고에서 제거할까요? 🗑️",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  // 삭제 실행 (이름 넘겨줌 -> 스낵바 뜸)
+                  _deleteIngredient(docId, name);
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFA36A),
+                  minimumSize: const Size.fromHeight(48),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  "삭제하기",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("취소", style: TextStyle(color: Colors.grey)),
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
-
-  // ==========================================
-  // UI 빌드 부분
-  // ==========================================
 
   @override
   Widget build(BuildContext context) {
