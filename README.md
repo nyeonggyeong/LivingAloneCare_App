@@ -1,5 +1,7 @@
 # <img src="assets/images/fork_logo_git.png" width="35"/> 자취생 키우기 (Living Alone Care)
-자취생 키우기는 AI 이미지 인식 기술을 통해 번거로운 식재료 등록 과정을 자동화하고, 현재 보유한 재료에 최적화된 레시피를 제안함으로써 음식물 쓰레기 감소와 식비 절감을 동시에 실현하는 서비스입니다.
+자취생 키우기는 AI 이미지 인식 기술을 통해 번거로운 식재료 등록 과정을 자동화하고,현재 보유한 재료에 최적화된 레시피를 제안함으로써 음식물 쓰레기 감소와 식비 절감을 동시에 실현하는 서비스입니다.
+
+<br>
 
 ## 📖 프로젝트 개요 (Project Overview)
 
@@ -10,6 +12,8 @@ AI 이미지 인식 기술을 활용해 식재료를 자동 등록하고 사용�
 개발 기간: 2024.09 ~ 2024.12
 
 팀명: 보송이 (3인 팀)
+
+<br/>
 
 ## 🛠️ 기술 스택 (Tech Stack)
 
@@ -25,11 +29,14 @@ AI 이미지 인식 기술을 활용해 식재료를 자동 등록하고 사용�
 ### AI & External APIs
 <img src="https://img.shields.io/badge/Google%20Cloud%20Vision-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white"> <img src="https://img.shields.io/badge/Google%20Translation%20API-4285F4?style=for-the-badge&logo=google-translate&logoColor=white"> <img src="https://img.shields.io/badge/YouTube%20Data%20API-FF0000?style=for-the-badge&logo=youtube&logoColor=white">
 
+<br/>
+
 ## ✨ 주요 기능 (Key Features)
 
 ### 0. 🔒 회원가입 및 로그인
 
 <img src="assets/images/첫화면.jpg" width="200"/> <img src="assets/images/회원가입.jpg" width="200"/> <img src="assets/images/로그인.jpg" width="200"/>
+
 
 
 ### 1. 📸 AI 식재료 등록
@@ -41,6 +48,7 @@ AI 이미지 인식 기술을 활용해 식재료를 자동 등록하고 사용�
 'Plastic bottle' 같은 용기 키워드를 필터링하여 내용물만 정확히 인식합니다.
 
 <img src="assets/images/카메라 스캔.jpg" width="200"/> <img src="assets/images/재료 등록.jpg" width="200"/>
+
 
 ### 2. 🧊 스마트 냉장고 재고 관리
 
@@ -62,6 +70,7 @@ FCM 푸시 알림을 통해 앱을 켜지 않아도 유통기한 임박 사실�
 부족한 재료가 무엇인지 직관적으로 보여주어 장보기를 유도합니다.
 
 <img src="assets/images/레시피 추천.jpg" width="200"/> <img src="assets/images/레시피 상세.jpg" width="200"/>
+
 
 ### 4. 🏘️ 커뮤니티 & 마이페이지
 
@@ -132,3 +141,4 @@ flutter run
 ```
 
 ## 🎥 데모 영상 (Demo Video)
+
